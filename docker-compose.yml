@@ -1,0 +1,95 @@
+# Q-SENTINEL Docker Compose — Isolated Hackathon Testbed
+#
+# Services:
+#   qsentinel-api       — FastAPI backend (L1/L2/L3/L4)
+#   qsentinel-dashboard — Streamlit Judge Mode UI
+#   qsentinel-attacker  — Adversarial test client
+#   qsentinel-rdp       — Lightweight desktop for judge access
+#
+# Network:
+#   qsentinel_internal  — Isolated bridge network for all services
+#
+# Volumes:
+#   qsentinel_data      — Persistent SQLite ledger + calibration data
+
+networks:
+  qsentinel_internal:
+    driver: bridge
+
+volumes:
+  qsentinel_data:
+
+services:
+
+  # ──────────────────────────────────────────────────────────────
+  # Q-SENTINEL API — FastAPI hosting L3 → L1 → L2 → L4
+  # ──────────────────────────────────────────────────────────────
+  qsentinel-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    volumes:
+      - qsentinel_data:/app/data
+    networks:
+      - qsentinel_internal
+    # No host port exposed — accessed only via internal network
+    # Dashboard and Attacker reach it at http://qsentinel-api:8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────────────────────────────
+  # Q-SENTINEL Dashboard — Streamlit Judge Mode
+  # ──────────────────────────────────────────────────────────────
+  qsentinel-dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    environment:
+      - QSENTINEL_API_URL=http://qsentinel-api:8000
+    depends_on:
+      qsentinel-api:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    networks:
+      - qsentinel_internal
+
+  # ──────────────────────────────────────────────────────────────
+  # Q-SENTINEL Attacker — Adversarial test client
+  # ──────────────────────────────────────────────────────────────
+  qsentinel-attacker:
+    build:
+      context: .
+      dockerfile: services/attacker/Dockerfile
+    environment:
+      - QSENTINEL_API_URL=http://qsentinel-api:8000
+      - QSENTINEL_DB_PATH=/app/data/ledger.db
+    volumes:
+      - qsentinel_data:/app/data
+    depends_on:
+      qsentinel-api:
+        condition: service_healthy
+    networks:
+      - qsentinel_internal
+
+  # ──────────────────────────────────────────────────────────────
+  # Q-SENTINEL RDP — Lightweight desktop for judge/operator
+  # ──────────────────────────────────────────────────────────────
+  # Image: lscr.io/linuxserver/webtop:ubuntu-xfce
+  # Source: https://docs.linuxserver.io/images/docker-webtop/
+  # This is the ONLY container that exposes a host-facing port for
+  # human interaction.  It does NOT run Q-SENTINEL logic.
+  qsentinel-rdp:
+    image: lscr.io/linuxserver/webtop:ubuntu-xfce
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    ports:
+      - "3389:3000"
+    networks:
+      - qsentinel_internal
+    # No Docker socket, no privileged, no extra ports
