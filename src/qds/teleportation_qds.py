@@ -145,25 +145,16 @@ class TeleportationQDS:
             "simulated_elements": L
         }
 
-    def execute_verification(self, shots: int = 1024, disturbance_prob: float = 0.0, is_invalid_signature: bool = False) -> dict:
+    def execute_verification(self, shots: int = 1024, disturbance_prob: float = 0.0) -> dict:
         """
-        Backward-compatible calibration interface.
+        Calibration interface for collecting per-basis measurement statistics.
         
         Generates L key elements (one per basis), distributes them through the
         quantum teleportation channel, and collects per-basis measurement statistics.
         
-        This method exists for the calibration pipeline and testing. Production
+        This method exists for the calibration pipeline. Production
         verification uses execute_session directly.
         """
-        if is_invalid_signature:
-            return {
-                "protocol_valid": False,
-                "shot_count": 0,
-                "measurement_counts": {},
-                "basis_probabilities": {},
-            }
-        
-        
         basis_counts = {"X": {"0": 0, "1": 0}, "Y": {"0": 0, "1": 0}, "Z": {"0": 0, "1": 0}}
         
         seed = self.seed if self.seed is not None else 42

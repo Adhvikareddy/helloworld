@@ -6,8 +6,8 @@ so every attack scenario uses the same source of truth.
 """
 import os
 
-API_URL = os.getenv("QSENTINEL_API_URL", "http://qsentinel-api:8000")
-DB_PATH = os.getenv("QSENTINEL_DB_PATH", "/app/data/ledger.db")
+API_URL = os.getenv("QSENTINEL_API_URL", "http://localhost:8000")
+DB_PATH = os.getenv("QSENTINEL_DB_PATH", "data/ledger.db")
 
 DEFAULT_SHOTS = int(os.getenv("QSENTINEL_DEFAULT_SHOTS", "1024"))
 DEFAULT_SEED = int(os.getenv("QSENTINEL_DEFAULT_SEED", "42"))

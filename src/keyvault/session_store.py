@@ -10,8 +10,9 @@ import json
 from typing import Dict, List, Optional, Tuple, Any
 
 class SessionStore:
-    def __init__(self, db_path: str = "qsentinel_sessions.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or os.environ.get("QSENTINEL_SESSION_DB", "data/qsentinel_sessions.db")
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:

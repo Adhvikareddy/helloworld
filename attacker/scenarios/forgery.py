@@ -24,30 +24,30 @@ from attacker.config import FORGERY_B_POPULATION, DISTURBANCE_LEVELS, DEFAULT_RE
 
 def run_forgery_a(count: int = DEFAULT_REPEAT_COUNT) -> list:
     """
-    Execute Forgery A: mutate a signed message AFTER signing.
+    Execute Forgery A: Valid classical ML-DSA-65 envelope with forged quantum keys.
 
     Steps per attempt:
-      1. Construct a legitimate payload (as if genuinely signed).
-      2. Set is_invalid_signature=True to signal that the payload was
-         tampered after signing — L1 QDS validity must reject.
-      3. Submit via normal API.
-      4. Verify REJECT with reason=invalid_qds_signature.
+      1. Construct a legitimate session and pre-distribute states.
+      2. Mutate a random subset of revealed classical keys (flipping bit values).
+      3. Validly sign the request payload with Alice's private key.
+      4. Submit via normal /v1/qds/verify API.
+      5. Verify REJECT with statistical probe error rate exceeding thresholds.
     """
     results = []
     run_id = f"forgery-a-{uuid.uuid4()}"
     for i in range(count):
         started = datetime.datetime.utcnow().isoformat()
-        payload = get_base_payload(experiment_id=f"forgery_a_{i}")
-        # Mutation AFTER signing — makes the signature invalid
-        payload["message_digest"] = "TAMPERED_" + payload["message_digest"]
-        payload["is_invalid_signature"] = True
+        payload = get_base_payload(
+            mutate_keys=True,
+            mutation_rate=0.35,
+            experiment_id=f"forgery_a_{i}",
+        )
 
         raw = send_verify(payload)
         resp = raw["response"]
         actual_decision = resp.get("decision", "ERROR")
         reason = resp.get("reason", "")
 
-        # L3 attacks return 403, L1 returns 200 with REJECT
         if raw["http_status"] == 403:
             actual_decision = "REJECT"
             reason = resp.get("detail", "")
@@ -55,13 +55,13 @@ def run_forgery_a(count: int = DEFAULT_REPEAT_COUNT) -> list:
         results.append(make_attack_result(
             attack_type="forgery_a",
             target="/v1/qds/verify",
-            expected_primary_layer="L1",
+            expected_primary_layer="L2",
             expected_outcome="REJECT",
             actual_outcome=actual_decision,
             detected=actual_decision != "ACCEPT",
             event_id=resp.get("evidence_id"),
             reason=reason,
-            parameters={"mutated_digest": True, "attempt": i},
+            parameters={"mutated_quantum_keys": True, "attempt": i},
             error=raw["error"],
             run_id=run_id,
             started_at=started,
@@ -93,10 +93,10 @@ def run_forgery_b(count: int = FORGERY_B_POPULATION,
     run_id = f"forgery-b-{uuid.uuid4()}"
     for i in range(count):
         started = datetime.datetime.utcnow().isoformat()
-        payload = get_base_payload(experiment_id=f"forgery_b_{i}")
-        # Valid-path forgery: signature IS valid, but the attacker
-        # introduces a disturbance to try to pass detection.
-        payload["disturbance_prob"] = disturbance
+        payload = get_base_payload(
+            disturbance=disturbance,
+            experiment_id=f"forgery_b_{i}",
+        )
 
         raw = send_verify(payload)
         resp = raw["response"]

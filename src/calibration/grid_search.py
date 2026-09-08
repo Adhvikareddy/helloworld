@@ -113,8 +113,8 @@ def run_calibration(
     shots: int = 1024,
     baseline_runs: int = 30,
     adversarial_runs: int = 20,
-    baseline_path: str = "data/baseline.json",
-    threshold_path: str = "data/thresholds.json",
+    baseline_path: str = "data/calibration/baseline.json",
+    threshold_path: str = "data/calibration/thresholds.json",
 ):
     """Full calibration pipeline: baseline → grid search → freeze."""
     print("=" * 60)
@@ -124,12 +124,12 @@ def run_calibration(
     qds = TeleportationQDS(seed=42)
 
     # Step 1: Compute legitimate baseline from actual measurements
-    print(f"\n[1/4] Computing legitimate baseline ({baseline_runs} runs × {shots} shots)...")
+    print(f"\n[1/4] Computing legitimate baseline ({baseline_runs} runs x {shots} shots)...")
     mu, sigma = compute_baseline(qds, runs=baseline_runs, shots=shots)
     print(f"  Baseline mu:")
     for basis in ["X", "Y", "Z"]:
         print(f"    {basis}: P(0)={mu[basis]['0']:.4f}  P(1)={mu[basis]['1']:.4f}"
-              f"  σ(0)={sigma[basis]['0']:.4f}  σ(1)={sigma[basis]['1']:.4f}")
+              f"  std(0)={sigma[basis]['0']:.4f}  std(1)={sigma[basis]['1']:.4f}")
 
     # Step 2: Collect legitimate deviation scores
     print(f"\n[2/4] Computing legitimate D scores ({baseline_runs} runs)...")
@@ -145,7 +145,7 @@ def run_calibration(
 
     # Step 3: Collect adversarial deviation scores
     disturbance_levels = [0.10, 0.25, 0.50]
-    print(f"\n[3/4] Computing adversarial D scores ({adversarial_runs} runs × {len(disturbance_levels)} levels)...")
+    print(f"\n[3/4] Computing adversarial D scores ({adversarial_runs} runs x {len(disturbance_levels)} levels)...")
     adv_scores = collect_deviation_scores(qds, mu, disturbance_levels,
                                           runs_per_level=adversarial_runs, shots=shots)
     for level, scores in adv_scores.items():

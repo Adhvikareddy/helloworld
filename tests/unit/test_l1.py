@@ -118,18 +118,22 @@ class TestDisturbance:
 
 
 class TestInvalidSignature:
-    """Verify invalid signature path."""
+    """Verify cryptographic signature and execution path."""
 
-    def test_invalid_signature_returns_invalid(self):
-        qds = TeleportationQDS(seed=42)
-        result = qds.execute_verification(shots=1024, is_invalid_signature=True)
-        assert result["protocol_valid"] is False
-        assert result["measurement_counts"] == {}
-        assert result["basis_probabilities"] == {}
+    def test_invalid_pqc_signature_fails_verification(self):
+        from src.security.envelope import PQCEnvelope
+        pk, sk = PQCEnvelope.generate_keypair()
+        payload = {"data": "authentic"}
+        sig = PQCEnvelope.sign_payload(sk, payload)
+        # Tamper payload
+        tampered_payload = {"data": "tampered"}
+        assert PQCEnvelope.verify_payload(pk, tampered_payload, sig) is False
+        # Corrupted signature
+        assert PQCEnvelope.verify_payload(pk, payload, "garbage_sig") is False
 
     def test_valid_signature_runs_circuit(self):
         qds = TeleportationQDS(seed=42)
-        result = qds.execute_verification(shots=1024, is_invalid_signature=False)
+        result = qds.execute_verification(shots=1024)
         assert result["protocol_valid"] is True
         assert len(result["measurement_counts"]) == 3
 

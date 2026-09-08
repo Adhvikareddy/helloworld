@@ -18,8 +18,8 @@ LEDGER_SECRET = os.environ.get("QSENTINEL_LEDGER_SECRET", "default_insecure_secr
 
 class EvidenceLedger:
     
-    def __init__(self, db_path="data/ledger.db"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path or os.environ.get("QSENTINEL_DB_PATH", "data/ledger.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
 
@@ -111,13 +111,14 @@ class EvidenceLedger:
             
             cursor.execute('''
                 INSERT INTO evidence (
-                    event_id, timestamp, session_id, signer_id, verifier_id, decision,
+                    seq_num, event_id, timestamp, session_id, signer_id, verifier_id, decision,
                     findings, experiment_id, previous_hash, current_hash, signature
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                canonical_fields['event_id'], canonical_fields['timestamp'], canonical_fields['session_id'],
-                canonical_fields['signer_id'], canonical_fields['verifier_id'], canonical_fields['decision'],
-                canonical_fields['findings'], canonical_fields['experiment_id'], previous_hash, current_hash, signature
+                canonical_fields['seq_num'], canonical_fields['event_id'], canonical_fields['timestamp'],
+                canonical_fields['session_id'], canonical_fields['signer_id'], canonical_fields['verifier_id'],
+                canonical_fields['decision'], canonical_fields['findings'], canonical_fields['experiment_id'],
+                previous_hash, current_hash, signature
             ))
             
             conn.commit()

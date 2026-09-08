@@ -1,5 +1,5 @@
 {
-  "tau_low": 0.05,
-  "tau_high": 0.15,
-  "version": "cal-v9-initial"
+  "tau_low": 0.0102,
+  "tau_high": 0.022,
+  "version": "v1-qiskit-calibrated"
 }

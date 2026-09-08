@@ -62,7 +62,7 @@ def run_ledger_tamper() -> list:
         # Use a subquery since SQLite does not support LIMIT in UPDATE
         cursor.execute(
             "UPDATE evidence SET decision = ? "
-            "WHERE id = (SELECT id FROM evidence ORDER BY id DESC LIMIT 1)",
+            "WHERE seq_num = (SELECT seq_num FROM evidence ORDER BY seq_num DESC LIMIT 1)",
             (tamper_value,)
         )
         rows_affected = cursor.rowcount

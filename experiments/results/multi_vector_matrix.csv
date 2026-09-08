@@ -1,0 +1,8 @@
+scenario,decision,IdentityGuard,QuantumDetector,ReplayGuard,TimestampGuard
+legitimate,ACCEPT,-,INFO,-,-
+impersonation,REJECT,REJECT,INFO,-,-
+replay,REJECT,-,INFO,REJECT,-
+stale_timestamp,REJECT,-,INFO,-,REJECT
+quantum_forgery,REJECT,-,REJECT,-,-
+channel_manipulation,REJECT,-,REJECT,-,-
+composite,REJECT,REJECT,REJECT,-,REJECT

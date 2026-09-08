@@ -58,10 +58,9 @@ def run_channel(
 
             started = datetime.datetime.utcnow().isoformat()
             payload = get_base_payload(
-                shots=shots,
+                disturbance=disturbance,
                 experiment_id=f"channel_{level_name}_{rep}",
             )
-            payload["disturbance_prob"] = disturbance
 
             raw = send_verify(payload)
             resp = raw["response"]

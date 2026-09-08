@@ -25,16 +25,8 @@ class AttackerHarness:
             self.alice_sk = f.read()
 
     def _build_base_payload(self) -> Dict[str, Any]:
-        return {
-            "session_id": f"session-{uuid.uuid4()}",
-            "signer_id": "alice",
-            "verifier_id": "bob",
-            "nonce": f"nonce-{uuid.uuid4()}",
-            "timestamp": time.time(),
-            "message_bit": 0,
-            "measurement_bases": ["X", "Y", "Z"] * 100, # L=300
-            "experiment_id": "test_run"
-        }
+        from attacker.client import get_base_payload
+        return get_base_payload(signer_id="alice", verifier_id="bob", disturbance=0.0)
 
     # 1. Impersonation (L3 - Authentication)
     def impersonate_alice(self) -> Dict[str, Any]:
@@ -66,29 +58,16 @@ class AttackerHarness:
         return payload
 
     # 4. Forgery B - Quantum Forgery (L2 Statistical)
-    def quantum_forgery(self) -> tuple[Dict[str, Any], dict]:
-        """
-        Mallory guesses the quantum states.
-        Because we can't actually intercept the simulated channel easily from the HTTP client,
-        we simulate this by providing completely random measurement bases that don't match the key.
-        Actually, the simulator will run the circuits, but we can't easily force it to use Mallory's guesses
-        without modifying the API just for the test.
-        
-        Instead, we will rely on the unit/integration tests to directly call `compute_mismatch_rate`
-        with simulated adversarial guesses to prove the bounds.
-        """
-        payload = self._build_base_payload()
-        sig = PQCEnvelope.sign_payload(self.alice_sk, payload)
-        payload["signature"] = sig
-        return payload, {"x_testbed_disturbance": 1.0} # Force max error to simulate totally wrong states
+    def quantum_forgery(self) -> Dict[str, Any]:
+        """Mallory holds a valid classical signature but guesses quantum states."""
+        from attacker.client import get_base_payload
+        return get_base_payload(mutate_keys=True, mutation_rate=0.35)
 
     # 5. Channel Manipulation (L2 Statistical)
-    def channel_manipulation(self, disturbance: float = 0.5) -> tuple[Dict[str, Any], dict]:
-        """Mallory injects noise into the quantum channel."""
-        payload = self._build_base_payload()
-        sig = PQCEnvelope.sign_payload(self.alice_sk, payload)
-        payload["signature"] = sig
-        return payload, {"x_testbed_disturbance": disturbance}
+    def channel_manipulation(self, disturbance: float = 0.5) -> Dict[str, Any]:
+        """Channel perturbation scenario."""
+        from attacker.client import get_base_payload
+        return get_base_payload(disturbance=disturbance)
 
     # 6. Replay Attack (L3 Freshness)
     def replay_attack(self) -> tuple[Dict[str, Any], Dict[str, Any]]:
@@ -99,7 +78,7 @@ class AttackerHarness:
         return payload, payload # Return it twice to send sequentially
 
     # 7. Composite Attack (Multiple vectors simultaneously)
-    def composite_attack(self) -> tuple[Dict[str, Any], dict]:
+    def composite_attack(self) -> Dict[str, Any]:
         """Impersonation + Stale Timestamp + Forged Quantum."""
         payload = self._build_base_payload()
         payload["timestamp"] = time.time() - 3600 # Stale
@@ -108,6 +87,5 @@ class AttackerHarness:
         # Signed by Mallory
         sig = PQCEnvelope.sign_payload(self.mallory_sk, payload)
         payload["signature"] = sig
-        
-        return payload, {"x_testbed_disturbance": 1.0}
+        return payload
 

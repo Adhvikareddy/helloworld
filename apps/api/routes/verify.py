@@ -64,6 +64,11 @@ def verify_qds(req: VerifyRequest, request: Request):
     )
     is_authorized = global_pqc_identity.is_verifier_authorized(req.verifier_id)
     
+    # Verify session identity binding: signer must be the party bound to the session
+    session_rec = global_session_store.get_session_record(req.session_id)
+    if session_rec and session_rec.get("signer_id") != req.signer_id:
+        is_identity_valid = False
+        
     auth_findings = AuthenticationProbe.evaluate(
         is_identity_valid, is_authorized, req.signer_id, req.verifier_id
     )
@@ -134,12 +139,35 @@ def verify_qds(req: VerifyRequest, request: Request):
     
     event_id = global_ledger.record_event(event_data)
     
-    # 8. Constant-time latency calculation without fixed sleep
+    # 8. Constant-time response envelope padding (mitigates timing side-channels)
+    TARGET_LATENCY_S = 0.040  # 40ms minimum constant-time floor
+    elapsed = time.time() - start_time
+    if elapsed < TARGET_LATENCY_S:
+        time.sleep(TARGET_LATENCY_S - elapsed)
     latency = (time.time() - start_time) * 1000.0
     
+    # 9. Role-based Response Tiering:
+    # Privileged roles (auditor/admin) receive complete diagnostic findings.
+    # Regular verifiers receive a sanitised security policy notice on REJECT to prevent attacker reconnaissance.
+    is_privileged = (
+        req.verifier_id in ["auditor", "admin"]
+        or req.verifier_id.endswith("_auditor")
+        or request.headers.get("x-role") in ["auditor", "admin"]
+    )
+    
+    if decision == "REJECT" and not is_privileged:
+        response_findings = [{
+            "detector": "SecurityPolicy",
+            "severity": "REJECT",
+            "description": "Verification rejected by security policy. Contact an authorized auditor for detailed findings.",
+            "metrics": {"tier": "standard_verifier", "findings_redacted": True}
+        }]
+    else:
+        response_findings = serialized_findings
+        
     return VerifyResponse(
         decision=decision,
-        findings=serialized_findings,
+        findings=response_findings,
         evidence_id=event_id,
         latency_ms=latency,
         calibration_status=global_policy.get_version()

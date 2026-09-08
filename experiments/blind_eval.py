@@ -7,7 +7,7 @@ requests against the API. Computes standard detection metrics.
 import uuid
 import time
 from src.transport.client import TransportClient
-from attacker.scenarios import AttackerHarness
+from attacker.harness import AttackerHarness
 
 def run_blind_evaluation(
     n_legitimate: int = 20,
@@ -34,18 +34,34 @@ def run_blind_evaluation(
     # Here we'll just inject sessions into the global keyvault
     from src.keyvault import global_keyvault
 
+    import random
+    from src.qds.teleportation_qds import TeleportationQDS
+    from src.security.envelope import PQCEnvelope
+    from src.keyvault.session_store import global_session_store
+
+    with open("attacker/credentials/alice_sk.bin", "rb") as f:
+        alice_sk = f.read()
+
     # Phase 1: Legitimate requests
     print(f"[1/2] Running {n_legitimate} legitimate requests...")
+    qds_clean = TeleportationQDS(disturbance_prob=0.0)
     for i in range(n_legitimate):
         session = global_keyvault.create_session("alice", 300)
-        payload, _ = harness.replay_attack() # This returns a valid base payload
-        payload["session_id"] = session.session_id
         
-        # Re-sign with correct session_id
-        from src.security.envelope import PQCEnvelope
-        with open("attacker/credentials/alice_sk.bin", "rb") as f:
-            alice_sk = f.read()
-            
+        # Teleportation over clean channel (disturbance=0.0)
+        rng = random.Random(f"{session.session_id}:bob")
+        bob_bases = [rng.choice(["X", "Z"]) for _ in range(300)]
+        bob_outcomes, _ = qds_clean.execute_session(
+            session.k_0, bob_bases, f"{session.session_id}:bob", disturbance=0.0
+        )
+        global_session_store.store_verifier_outcomes(
+            session.session_id, "bob", bob_bases, bob_outcomes
+        )
+        
+        payload, _ = harness.replay_attack()
+        payload["session_id"] = session.session_id
+        payload["revealed_keys"] = [{"bit_index": idx, "basis": k.basis, "bit_value": k.bit} for idx, k in enumerate(session.k_0)]
+        payload.pop("signature", None)
         payload["signature"] = PQCEnvelope.sign_payload(alice_sk, payload)
         
         resp = client.post_verification(payload)
@@ -55,21 +71,33 @@ def run_blind_evaluation(
             if decision == "ACCEPT":
                 TP += 1
             else:
+                print(f"Legitimate failed: {resp.json()}")
                 FN += 1
         else:
+            print(f"Legitimate failed status {resp.status_code}: {resp.text}")
             FN += 1
 
-    # Phase 2: Adversarial requests (valid-path forgery)
+    # Phase 2: Adversarial requests (valid-path forgery under channel disturbance)
     print(f"[2/2] Running {n_adversarial} adversarial requests (disturbance={adversarial_disturbance})...")
+    qds_noisy = TeleportationQDS(disturbance_prob=adversarial_disturbance)
     for i in range(n_adversarial):
         session = global_keyvault.create_session("alice", 300)
-        payload, _ = harness.replay_attack() 
+        rng = random.Random(f"{session.session_id}:bob:{i}")
+        bob_bases = [rng.choice(["X", "Z"]) for _ in range(300)]
+        bob_outcomes, _ = qds_noisy.execute_session(
+            session.k_0, bob_bases, f"{session.session_id}:bob:{i}", disturbance=adversarial_disturbance
+        )
+        global_session_store.store_verifier_outcomes(
+            session.session_id, "bob", bob_bases, bob_outcomes
+        )
+        
+        payload, _ = harness.replay_attack()
         payload["session_id"] = session.session_id
+        payload["revealed_keys"] = [{"bit_index": idx, "basis": k.basis, "bit_value": k.bit} for idx, k in enumerate(session.k_0)]
+        payload.pop("signature", None)
         payload["signature"] = PQCEnvelope.sign_payload(alice_sk, payload)
         
-        headers = {"x-testbed-disturbance": str(adversarial_disturbance)}
-        
-        resp = client.post_verification(payload, headers=headers)
+        resp = client.post_verification(payload)
         
         if resp.status_code == 200:
             decision = resp.json().get("decision", "ERROR")

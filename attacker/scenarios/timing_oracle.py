@@ -10,6 +10,12 @@ from src.transport.client import TransportClient
 def run_timing_oracle(client: TransportClient, valid_payload: dict, invalid_auth_payload: dict):
     print("Running timing oracle check...")
     
+    # Warm up connection so TCP/TLS handshake is not measured as API verification latency
+    try:
+        client.client.get("/v1/health")
+    except Exception:
+        pass
+
     # 1. Measure invalid auth (should fail at L3)
     t0 = time.time()
     try:

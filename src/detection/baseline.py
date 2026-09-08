@@ -5,8 +5,16 @@ class BaselineManager:
     """
     Manages the frozen legitimate measurement baseline for the statistical detector.
     """
-    def __init__(self, filepath="data/baseline.json"):
-        self.filepath = filepath
+    def __init__(self, filepath=None):
+        if filepath is None:
+            if os.path.exists("data/calibration/baseline.json"):
+                self.filepath = "data/calibration/baseline.json"
+            elif os.path.exists("data/baseline.json"):
+                self.filepath = "data/baseline.json"
+            else:
+                self.filepath = "data/calibration/baseline.json"
+        else:
+            self.filepath = filepath
         self.baseline = None
         self.load_baseline()
 

@@ -9,8 +9,8 @@ import time
 import os
 
 class SQLiteNonceGuard:
-    def __init__(self, db_path: str = "data/nonces.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path or os.environ.get("QSENTINEL_NONCE_DB", "data/nonces.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
 

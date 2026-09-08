@@ -9,7 +9,7 @@ from fastapi import HTTPException
 import threading
 
 class RateLimiter:
-    def __init__(self, requests: int = 100, window_seconds: int = 60):
+    def __init__(self, requests: int = 1000, window_seconds: int = 60):
         self.requests = requests
         self.window = window_seconds
         self.history = {}
@@ -33,4 +33,4 @@ class RateLimiter:
             q.append(now)
 
 # Global instance for the API
-global_rate_limiter = RateLimiter(requests=100, window_seconds=60)
+global_rate_limiter = RateLimiter(requests=1000, window_seconds=60)

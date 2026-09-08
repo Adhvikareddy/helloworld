@@ -26,9 +26,7 @@ networks:
   qsentinel_mgmt:
     driver: bridge
 
-volumes:
-  qsentinel_data:
-  qsentinel_keys:
+volumes: {}
 
 services:
 
@@ -45,8 +43,12 @@ services:
       - QSENTINEL_DB_PATH=/app/data/ledger.db
       - QSENTINEL_NONCE_DB=/app/data/nonces.db
     volumes:
-      - qsentinel_data:/app/data
-      - qsentinel_keys:/app/keys:ro  # Read-only access to key material
+      - ./data:/app/data
+      - ./apps:/app/apps
+      - ./src:/app/src
+      - ./attacker:/app/attacker
+      - ./experiments:/app/experiments
+      - ./attacker/credentials:/app/keys:ro  # Read-only access to key material
     networks:
       - qsentinel_kv
       - qsentinel_api
@@ -61,6 +63,8 @@ services:
         limits:
           memory: 2G
           cpus: '2.0'
+    ports:
+      - "8000:8000"
 
   # ──────────────────────────────────────────────────────────────
   # Q-SENTINEL Dashboard — Streamlit Judge Mode

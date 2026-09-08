@@ -73,18 +73,40 @@ pip install -r requirements.txt
 
 ### Run
 
+#### Option A: One-Click Startup (Backend + Frontend)
 ```bash
-# Provision credentials (one-time)
-set PYTHONPATH=. && python attacker/provision.py
+# Windows Batch
+start.bat
 
-# Start the API
-uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
+# PowerShell
+./start.ps1
+```
 
-# Run tests
-make test-local
+#### Option B: Manual Startup
+```bash
+# 1. Provision credentials (one-time setup)
+python attacker/provision.py
 
-# Start the dashboard
-streamlit run apps/dashboard/app.py
+# 2. Start FastAPI Backend (includes automatic startup calibration)
+python -m uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
+
+# 3. Start React Frontend Dashboard (in a second terminal)
+cd frontend
+npm install
+npm run dev
+# Open http://localhost:3000 in your browser
+```
+
+#### Option C: Verification & Smoke Tests
+```bash
+# Full pytest suite (64/64 tests)
+python -m pytest tests/unit tests/integration tests/property -q
+
+# CLI Adversarial Attack Suite (9 scenarios)
+python -m attacker.runner
+
+# End-to-end acceptance smoke test
+python scripts/e2e_smoke_test.py
 ```
 
 ### Docker
