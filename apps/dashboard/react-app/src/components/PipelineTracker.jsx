@@ -25,12 +25,12 @@ function parseStageStatus(pipelineStages) {
 function StageNode({ stage, status, isLast }) {
   const stateConfig = {
     pass: {
-      ring: 'ring-emerald-500/60 shadow-emerald-500/20',
-      bg: 'bg-emerald-500/15',
-      icon: <CheckCircle size={18} className="text-emerald-400" />,
+      ring: 'ring-[#c6f135]/50 shadow-[#c6f135]/15',
+      bg: 'bg-[#c6f135]/10',
+      icon: <CheckCircle size={18} className="text-[#c6f135]" />,
       label: 'PASSED',
-      labelColor: 'text-emerald-400',
-      text: 'text-emerald-300',
+      labelColor: 'text-[#c6f135]',
+      text: 'text-white',
     },
     fail: {
       ring: 'ring-rose-500/60 shadow-rose-500/20',
@@ -51,18 +51,18 @@ function StageNode({ stage, status, isLast }) {
     skip: {
       ring: 'ring-slate-700/40',
       bg: 'bg-slate-800/30',
-      icon: <Clock size={18} className="text-slate-600" />,
+      icon: <Clock size={18} className="text-[#8b8e97]" />,
       label: 'SKIPPED',
-      labelColor: 'text-slate-600',
-      text: 'text-slate-600',
+      labelColor: 'text-[#8b8e97]',
+      text: 'text-[#8b8e97]',
     },
     pending: {
       ring: 'ring-slate-700/40',
       bg: 'bg-slate-800/30',
-      icon: <Clock size={18} className="text-slate-500" />,
+      icon: <Clock size={18} className="text-[#8b8e97]" />,
       label: 'PENDING',
-      labelColor: 'text-slate-500',
-      text: 'text-slate-400',
+      labelColor: 'text-[#8b8e97]',
+      text: 'text-[#8b8e97]',
     },
   }
 
@@ -73,9 +73,9 @@ function StageNode({ stage, status, isLast }) {
       <div className={`flex-1 flex flex-col items-center gap-2 p-3 rounded-xl ring-1 shadow-lg transition-all duration-500 ${cfg.ring} ${cfg.bg}`}>
         <div className="flex items-center gap-2">
           {cfg.icon}
-          <span className={`text-xs font-bold ${cfg.text}`}>{stage.label}</span>
+          <span className={`text-xs font-semibold ${cfg.text}`}>{stage.label}</span>
         </div>
-        <span className="text-slate-500 text-xs text-center hidden md:block">{stage.desc}</span>
+        <span className="text-[#8b8e97] text-xs text-center hidden md:block">{stage.desc}</span>
         <span className={`text-xs font-mono font-semibold ${cfg.labelColor}`}>{cfg.label}</span>
       </div>
 
@@ -92,10 +92,10 @@ export default function PipelineTracker({ result }) {
   return (
     <div className="glass-card p-5">
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-        <h3 className="text-sm font-bold text-white">Pipeline Stage Tracker</h3>
+        <div className="w-2 h-2 rounded-full bg-[#c6f135] shadow-[0_0_6px_#c6f135]" />
+        <h3 className="text-sm font-semibold text-white">Pipeline Stage Tracker</h3>
         {result && (
-          <span className="ml-auto text-xs font-mono text-slate-500">
+          <span className="ml-auto text-xs font-mono text-[#8b8e97]">
             evt: {result.evidence_id?.slice(0, 20)}…
           </span>
         )}

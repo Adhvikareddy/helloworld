@@ -53,11 +53,11 @@ export default function DeviationGauge({ result, calibration }) {
   const needleAngle = D !== null ? toAngle(D) : START
 
   const decisionColors = {
-    ACCEPT: '#10B981',
+    ACCEPT: '#c6f135',
     QUARANTINE: '#F59E0B',
     REJECT: '#EF4444',
-    INTEGRITY_ALARM: '#a855f7',
-    null: '#64748b',
+    INTEGRITY_ALARM: '#EF4444',
+    null: '#8b8e97',
   }
   const activeColor = decisionColors[decision] || decisionColors[null]
 
@@ -68,11 +68,11 @@ export default function DeviationGauge({ result, calibration }) {
   return (
     <div className="glass-card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ background: activeColor }} />
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ background: activeColor, boxShadow: `0 0 6px ${activeColor}` }} />
           Deviation & Decision Gauge
         </h3>
-        <span className="text-[11px] font-mono text-slate-400">
+        <span className="text-[11px] font-mono text-[#8b8e97]">
           Scale max: {maxD.toFixed(3)}
         </span>
       </div>
@@ -97,7 +97,7 @@ export default function DeviationGauge({ result, calibration }) {
             {/* Zone 1: ACCEPT (START -> lowAngle) */}
             <path
               d={safeArc(CX, CY, R, START, lowAngle)}
-              fill="none" stroke="#10B981" strokeWidth={STROKE_WIDTH}
+              fill="none" stroke="#c6f135" strokeWidth={STROKE_WIDTH}
               strokeLinecap="round" opacity="0.85"
             />
 
@@ -116,7 +116,7 @@ export default function DeviationGauge({ result, calibration }) {
             />
 
             {/* T_low indicator dot */}
-            <circle cx={tickLow.x} cy={tickLow.y} r="2.5" fill="#10B981" />
+            <circle cx={tickLow.x} cy={tickLow.y} r="2.5" fill="#c6f135" />
             {/* T_high indicator dot */}
             <circle cx={tickHigh.x} cy={tickHigh.y} r="2.5" fill="#EF4444" />
 
@@ -135,13 +135,13 @@ export default function DeviationGauge({ result, calibration }) {
             <circle cx={CX} cy={CY} r="2.5" fill="#0f172a" />
 
             {/* Zone legend labels */}
-            <text x="32" y="146" fill="#10B981" fontSize="9" fontWeight="600" textAnchor="middle" fontFamily="Inter">
+            <text x="32" y="146" fill="#c6f135" fontSize="9" fontWeight="600" textAnchor="middle" fontFamily="Plus Jakarta Sans">
               ACCEPT
             </text>
-            <text x="120" y="24" fill="#F59E0B" fontSize="9" fontWeight="600" textAnchor="middle" fontFamily="Inter">
+            <text x="120" y="24" fill="#F59E0B" fontSize="9" fontWeight="600" textAnchor="middle" fontFamily="Plus Jakarta Sans">
               QUARANTINE
             </text>
-            <text x="208" y="146" fill="#EF4444" fontSize="9" fontWeight="600" textAnchor="middle" fontFamily="Inter">
+            <text x="208" y="146" fill="#EF4444" fontSize="9" fontWeight="600" textAnchor="middle" fontFamily="Plus Jakarta Sans">
               REJECT
             </text>
 
@@ -150,7 +150,7 @@ export default function DeviationGauge({ result, calibration }) {
               fontSize="16" fontWeight="bold" fontFamily="JetBrains Mono">
               {D !== null ? D.toFixed(5) : (decision ? 'L3 / L1 BLOCK' : '0.00000')}
             </text>
-            <text x={CX} y={CY + 34} textAnchor="middle" fill="#94a3b8" fontSize="8" fontFamily="Inter">
+            <text x={CX} y={CY + 34} textAnchor="middle" fill="#8b8e97" fontSize="8" fontFamily="Plus Jakarta Sans">
               {D !== null ? `Deviation D (vs τ_low: ${tLow.toFixed(4)})` : 'Quantum State Metric'}
             </text>
           </svg>
@@ -161,7 +161,7 @@ export default function DeviationGauge({ result, calibration }) {
           <Stat label="Decision Verdict" value={decision ?? 'STANDBY'} color={activeColor} bold />
           <Stat label="Deviation Score (D)" value={D !== null ? D.toFixed(5) : (decision ? 'Pre-quantum reject' : '0.00000')} mono color={activeColor} />
           <Stat label="χ² Metric" value={chi2 !== null ? chi2.toFixed(2) : '—'} mono />
-          <Stat label="τ_low Threshold (Accept)" value={tLow.toFixed(4)} mono color="#10B981" />
+          <Stat label="τ_low Threshold (Accept)" value={tLow.toFixed(4)} mono color="#c6f135" />
           <Stat label="τ_high Threshold (Quarantine)" value={tHigh.toFixed(4)} mono color="#EF4444" />
           <Stat
             label="Policy Interpretation"

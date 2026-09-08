@@ -89,22 +89,22 @@ export default function PauliBarChart({ result, calibration }) {
       <div>
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#c6f135] shadow-[0_0_6px_#c6f135]" />
               Pauli Measurement Distributions (p̂ vs μ)
             </h3>
-            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+            <p className="text-[11px] text-[#8b8e97] font-mono mt-0.5">
               Reference State: |+⟩ (|0⟩ probability per Pauli observable)
             </p>
           </div>
           <div className="flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-2 rounded-sm bg-cyan-400" />
+              <span className="w-3 h-2 rounded-sm bg-[#c6f135]" />
               <span className="text-slate-300 font-mono text-[11px]">p̂ Empirical</span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-2 rounded-sm bg-slate-600" />
-              <span className="text-slate-400 font-mono text-[11px]">μ Baseline</span>
+              <span className="text-[#8b8e97] font-mono text-[11px]">μ Baseline</span>
             </span>
           </div>
         </div>
@@ -115,22 +115,22 @@ export default function PauliBarChart({ result, calibration }) {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
               <XAxis
                 dataKey="basis"
-                tick={{ fill: '#cbd5e1', fontSize: 11, fontFamily: 'Inter', fontWeight: 500 }}
+                tick={{ fill: '#cbd5e1', fontSize: 11, fontFamily: 'Plus Jakarta Sans', fontWeight: 500 }}
                 axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
                 tickLine={false}
               />
               <YAxis
                 domain={[0, 1.05]}
                 ticks={[0.0, 0.25, 0.5, 0.75, 1.0]}
-                tick={{ fill: '#64748b', fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                tick={{ fill: '#8b8e97', fontSize: 11, fontFamily: 'JetBrains Mono' }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={v => v.toFixed(2)}
               />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-              <ReferenceLine y={1.0} stroke="#10b981" strokeDasharray="3 3" opacity={0.5} />
-              <ReferenceLine y={0.5} stroke="#64748b" strokeDasharray="3 3" opacity={0.5} />
-              <Bar dataKey="empirical" fill="#00F2FE" radius={[4, 4, 0, 0]} maxBarSize={36} fillOpacity={0.9} />
+              <ReferenceLine y={1.0} stroke="#c6f135" strokeDasharray="3 3" opacity={0.5} />
+              <ReferenceLine y={0.5} stroke="#8b8e97" strokeDasharray="3 3" opacity={0.5} />
+              <Bar dataKey="empirical" fill="#c6f135" radius={[4, 4, 0, 0]} maxBarSize={36} fillOpacity={0.9} />
               <Bar dataKey="baseline" fill="#475569" radius={[4, 4, 0, 0]} maxBarSize={36} fillOpacity={0.65} />
             </BarChart>
           </ResponsiveContainer>
@@ -140,29 +140,29 @@ export default function PauliBarChart({ result, calibration }) {
       {/* Real-time Tomography Analysis Pill */}
       <div className="mt-3 pt-3 border-t border-white/5 grid grid-cols-3 gap-2 text-center font-mono">
         <div className="bg-white/[0.02] rounded-lg p-2 border border-white/5">
-          <span className="text-[10px] text-slate-500 block uppercase">Pauli X Observ.</span>
-          <span className={`text-xs font-bold ${isXDisturbed ? 'text-amber-400' : 'text-emerald-400'}`}>
+          <span className="text-[10px] text-[#8b8e97] block uppercase">Pauli X Observ.</span>
+          <span className={`text-xs font-bold ${isXDisturbed ? 'text-amber-400' : 'text-[#c6f135]'}`}>
             {(xItem.empirical * 100).toFixed(1)}%
           </span>
-          <span className="text-[9px] text-slate-500 block">
+          <span className="text-[9px] text-[#8b8e97] block">
             {isXDisturbed ? `Δ ${(xItem.delta * 100).toFixed(1)}%` : 'Aligned'}
           </span>
         </div>
         <div className="bg-white/[0.02] rounded-lg p-2 border border-white/5">
-          <span className="text-[10px] text-slate-500 block uppercase">Pauli Y Observ.</span>
-          <span className="text-xs font-bold text-cyan-300">
+          <span className="text-[10px] text-[#8b8e97] block uppercase">Pauli Y Observ.</span>
+          <span className="text-xs font-bold text-slate-200">
             {(data[1].empirical * 100).toFixed(1)}%
           </span>
-          <span className="text-[9px] text-slate-500 block">
+          <span className="text-[9px] text-[#8b8e97] block">
             Δ {(data[1].delta * 100).toFixed(1)}%
           </span>
         </div>
         <div className="bg-white/[0.02] rounded-lg p-2 border border-white/5">
-          <span className="text-[10px] text-slate-500 block uppercase">Pauli Z Observ.</span>
-          <span className="text-xs font-bold text-cyan-300">
+          <span className="text-[10px] text-[#8b8e97] block uppercase">Pauli Z Observ.</span>
+          <span className="text-xs font-bold text-slate-200">
             {(data[2].empirical * 100).toFixed(1)}%
           </span>
-          <span className="text-[9px] text-slate-500 block">
+          <span className="text-[9px] text-[#8b8e97] block">
             Δ {(data[2].delta * 100).toFixed(1)}%
           </span>
         </div>

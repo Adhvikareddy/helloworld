@@ -6,7 +6,6 @@ import PipelineTracker from './components/PipelineTracker'
 import PauliBarChart from './components/PauliBarChart'
 import DeviationGauge from './components/DeviationGauge'
 import LedgerInspector from './components/LedgerInspector'
-import { useHealthPoller } from './hooks/useHealthPoller'
 import { runScenario, getCalibrationStatus, getLedgerEvents } from './services/api'
 import { Activity, Layers, BookOpen } from 'lucide-react'
 
@@ -17,7 +16,6 @@ const TABS = [
 ]
 
 export default function App() {
-  const healthStatus = useHealthPoller(3000)
   const [activeTab, setActiveTab] = useState('control')
   const [activeScenarioKey, setActiveScenarioKey] = useState(null)
   const [lastResult, setLastResult] = useState(null)
@@ -57,13 +55,13 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #07090e 0%, #0d1117 50%, #070b12 100%)' }}>
+    <div className="min-h-screen" style={{ backgroundColor: '#090a0d' }}>
       <ShootingStarsBackground />
 
       <div className="relative z-10 max-w-screen-2xl mx-auto">
 
         {/* Header */}
-        <Header healthStatus={healthStatus} />
+        <Header />
 
         {/* Tab Navigation */}
         <nav className="px-6 mb-6">
@@ -75,10 +73,10 @@ export default function App() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs tracking-wider uppercase font-medium transition-all duration-200
                     ${isActive
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-lg shadow-cyan-500/10'
-                      : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                      ? 'bg-[#c6f135]/15 text-[#c6f135] border border-[#c6f135]/35 shadow-lg shadow-[#c6f135]/5'
+                      : 'text-[#8b8e97] hover:text-white hover:bg-white/5'
                     }`}
                 >
                   <Icon size={14} />
@@ -97,39 +95,6 @@ export default function App() {
               activeKey={activeScenarioKey}
               lastResult={lastResult}
             />
-
-            {/* Quick result banner */}
-            {lastResult && (
-              <div className="px-6 mb-4">
-                <div className={`glass-card px-5 py-3 flex flex-wrap items-center gap-4 animate-slide-in
-                  ${lastResult.decision === 'ACCEPT'
-                    ? 'border-emerald-500/30'
-                    : lastResult.decision === 'QUARANTINE'
-                    ? 'border-amber-500/30'
-                    : 'border-rose-500/30'
-                  }`}>
-                  <span className="text-slate-400 text-xs font-mono">Last Result:</span>
-                  <span className={`text-sm font-black
-                    ${lastResult.decision === 'ACCEPT' ? 'text-emerald-400'
-                    : lastResult.decision === 'QUARANTINE' ? 'text-amber-400'
-                    : 'text-rose-400'}`}>
-                    {lastResult.decision}
-                  </span>
-                  <span className="text-slate-500 text-xs font-mono">{lastResult.reason}</span>
-                  {lastResult.latency_ms && (
-                    <span className="text-slate-500 text-xs font-mono ml-auto">
-                      {Math.round(lastResult.latency_ms)}ms · {lastResult._mock ? 'MOCK' : 'LIVE'}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => setActiveTab('telemetry')}
-                    className="text-cyan-400 text-xs hover:text-cyan-300 underline underline-offset-2"
-                  >
-                    View Telemetry →
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 

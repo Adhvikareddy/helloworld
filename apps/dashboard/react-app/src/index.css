@@ -2,68 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --lime: #c6f135;
+  --bg: #090a0d;
+  --text-muted: #8b8e97;
+}
+
 @layer base {
   body {
-    font-family: 'Inter', system-ui, sans-serif;
-    background: #07090e;
-    color: #e2e8f0;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: var(--bg);
+    color: #f1f2f4;
+  }
+
+  h1, h2, h3, .brand-title {
+    font-family: 'Cinzel', serif;
   }
 }
 
 @layer components {
   .glass-card {
-    background: rgba(17, 24, 39, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.75rem;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    background: rgba(14, 16, 23, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.85rem;
+    box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.6);
   }
 
   .glass-card-hover {
-    background: rgba(17, 24, 39, 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.75rem;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    transition: all 0.2s ease;
+    background: rgba(14, 16, 23, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.85rem;
+    box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.6);
+    transition: all 0.25s ease;
   }
 
   .glass-card-hover:hover {
-    border-color: rgba(0, 242, 254, 0.25);
-    box-shadow: 0 0 30px rgba(0, 242, 254, 0.08), 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    transform: translateY(-1px);
+    border-color: rgba(198, 241, 53, 0.35);
+    box-shadow: 0 0 25px rgba(198, 241, 53, 0.12), 0 20px 45px -10px rgba(0, 0, 0, 0.6);
+    transform: translateY(-2px);
   }
 
   .btn-scenario {
-    @apply w-full px-4 py-3 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 justify-center;
+    @apply w-full px-4 py-2.5 rounded-lg font-medium text-xs tracking-wider uppercase transition-all duration-200 flex items-center gap-2 justify-center;
+  }
+
+  .btn-lime {
+    background: rgba(198, 241, 53, 0.1);
+    border: 1px solid rgba(198, 241, 53, 0.3);
+    color: #c6f135;
+  }
+
+  .btn-lime:hover {
+    background: rgba(198, 241, 53, 0.2);
+    border-color: #c6f135;
+    box-shadow: 0 0 20px rgba(198, 241, 53, 0.25);
   }
 
   .status-chip {
-    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border;
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border;
   }
 
-  .decision-accept {
-    @apply text-emerald-400 border-emerald-500/30 bg-emerald-500/10;
+  .text-lime {
+    color: #c6f135;
   }
 
-  .decision-reject {
-    @apply text-rose-400 border-rose-500/30 bg-rose-500/10;
+  .bg-lime-tint {
+    background: rgba(198, 241, 53, 0.08);
   }
 
-  .decision-quarantine {
-    @apply text-amber-400 border-amber-500/30 bg-amber-500/10;
+  .border-lime-subtle {
+    border-color: rgba(198, 241, 53, 0.25);
   }
 
-  .decision-alarm {
-    @apply text-purple-400 border-purple-500/30 bg-purple-500/10;
-  }
-
-  .gradient-text {
-    background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 50%, #a78bfa 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .editorial-title {
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.06em;
   }
 }
+
