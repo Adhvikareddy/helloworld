@@ -1,134 +1,211 @@
-# Q-SENTINEL v8
+# Q-SENTINEL v9
 
-**Quantum-Inspired Threat Detection for Teleportation-Based Quantum Digital Signatures**
+**Quantum-Inspired Cyber Threat Detection for Digital Signature Security**
 
-SIH 2026 · PS26141 · Egreen Quanta · Category: Software · Theme: Blockchain & Cybersecurity
+> Smart India Hackathon 2026 · PS SIH26141 · Egreen Quanta · Blockchain & Cybersecurity
 
 ---
 
 ## What is Q-SENTINEL?
 
-Q-SENTINEL is a focused software framework for detecting threats in
-teleportation-based Quantum Digital Signature (QDS) verification.  It uses
-Qiskit-Aer simulation, deterministic statistical analysis, and classical
-security controls — **no AI/ML**.
+Q-SENTINEL is a quantum-inspired digital signature verification system that uses
+simulated six-state quantum key distribution (QDS) to detect **forgery, replay,
+impersonation, and channel manipulation** attacks against digital signatures.
+
+It is **not** an AI/ML system. It uses physics-based detection: the information-disturbance
+tradeoff of quantum mechanics makes forging a signature statistically detectable.
+
+### Key Properties
+
+| Property | How |
+|----------|-----|
+| **Forgery detection** | Six-state QDS with P_forge ≈ 10⁻⁶ at L=300 |
+| **Replay prevention** | SQLite-persisted nonce guard + session single-use |
+| **Post-quantum auth** | ML-DSA-65 (FIPS 204) for request signing |
+| **Tamper-evident log** | HMAC-SHA256 hash chain with `BEGIN IMMEDIATE` atomicity |
+| **Multi-vector detection** | Independent probes + correlation engine (not single-path) |
+| **Fail-closed** | 503 if calibration artifact is missing |
+| **Side-channel protected** | Constant-time response envelope + response tiering |
+
+---
 
 ## Architecture
 
-Four runtime layers execute in strict order:
-
 ```
-UNTRUSTED REQUEST
-        ↓
-   L3 — Security & Authorization Guard
-        ↓  (authorized + fresh)
-   L1 — QDS Verification Core  (Qiskit-Aer)
-        ↓  (measurement evidence)
-   L2 — Statistical Threat Detector
-        ↓
-   ACCEPT / QUARANTINE / REJECT
-        ↓
-   L4 — Tamper-Evident Evidence Ledger  (SQLite hash-chain)
-```
-
-## Repository Structure
-
-```
-q-sentinel/
-├── apps/
-│   ├── api/             # FastAPI backend + Dockerfile
-│   │   ├── Dockerfile
-│   │   ├── main.py
-│   │   └── routes/
-│   └── dashboard/       # Streamlit Judge Mode + Dockerfile
-│       ├── Dockerfile
-│       └── app.py
-├── attacker/            # Adversarial test harness
-│   ├── runner.py        # CLI orchestrator
-│   ├── client.py        # HTTP client
-│   ├── config.py        # Centralised configuration
-│   ├── reporting.py     # Structured JSON results
-│   └── scenarios/       # Six attack implementations
-├── services/
-│   ├── attacker/Dockerfile
-│   └── rdp/README.md
-├── src/
-│   ├── qds/             # L1 — Teleportation-based QDS
-│   ├── security/        # L3 — Identity, Auth, Nonce, Replay
-│   ├── detection/       # L2 — Baseline, Statistics, Policy
-│   ├── ledger/          # L4 — Hash-chain, Verifier
-│   └── calibration/     # Offline calibration
-├── experiments/         # Blind evaluation scripts
-├── tests/               # Unit and integration tests
-├── docs/                # Operations and architecture docs
-├── docker-compose.yml
-├── Makefile
-└── requirements.txt
+┌──────────────────────────────────────────────────────┐
+│                   FastAPI Server                      │
+│                                                       │
+│  ┌─────────┐  ┌─────────┐  ┌──────────┐  ┌────────┐ │
+│  │ L3 Auth │→ │ L1 QDS  │→ │L2 Stats  │→ │L4 Log  │ │
+│  │ Probes  │  │ Core    │  │ Probes   │  │ Ledger │ │
+│  └─────────┘  └─────────┘  └──────────┘  └────────┘ │
+│       ↓            ↓            ↓            ↓       │
+│  ┌──────────────────────────────────────────────────┐ │
+│  │           Correlation Engine                     │ │
+│  │     ACCEPT / QUARANTINE / REJECT                 │ │
+│  └──────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
 ```
 
-## Prerequisites
+### Detection Layers
 
-**Docker is required.**  See [docs/DOCKER_OPERATIONS.md](docs/DOCKER_OPERATIONS.md)
-for installation instructions.
+- **L1 (Quantum Core)**: Teleportation-based QDS using Qiskit Aer with six-state ensemble
+- **L2 (Statistical)**: Binomial mismatch rate test with family-wise error control (scipy.stats)
+- **L3 (Security)**: ML-DSA-65 authentication, nonce freshness, timestamp validity, rate limiting
+- **L4 (Evidence)**: HMAC-SHA256 hash chain with monotonic sequence numbers, audit replay
+
+---
 
 ## Quick Start
 
+### Prerequisites
+
+- Python 3.11+ (development uses 3.14, Docker uses 3.11)
+- pip
+
+### Installation
+
 ```bash
-# Build all containers
-make build
-
-# Start the isolated testbed
-make up
-
-# Run calibration (freezes thresholds)
-make calibrate
-
-# Access Judge Mode dashboard
-open http://localhost:8501
-
-# Run all attacks
-make attack-all
-
-# Run blind evaluation
-make blind
-
-# Stop
-make down
+git clone <repo>
+cd helloworld
+pip install -r requirements.txt
 ```
 
-## Attack Harness
+### Run
 
-Six distinct executable attacks, each implemented as a real adversarial
-client against the API:
+```bash
+# Provision credentials (one-time)
+set PYTHONPATH=. && python attacker/provision.py
 
-| Attack | Primary Layer | Expected |
-|---|---|---|
-| Forgery A (invalid signature) | L1 | REJECT |
-| Forgery B (valid-path experiment) | L1/L2 | measured |
-| Impersonation | L3 | REJECT |
-| Replay | L3 | REJECT |
-| Unauthorized Verification | L3 | REJECT |
-| Channel Manipulation | L2 | QUARANTINE/REJECT |
-| Ledger Tampering | L4 | Integrity violation |
+# Start the API
+uvicorn apps.api.main:app --host 0.0.0.0 --port 8000
 
-See `make attack-all` or individual `make attack-*` commands.
+# Run tests
+make test-local
 
-## Documentation
+# Start the dashboard
+streamlit run apps/dashboard/app.py
+```
 
-| Document | Description |
-|---|---|
-| [DOCKER_OPERATIONS.md](docs/DOCKER_OPERATIONS.md) | Build, run, access, troubleshoot |
-| [CONTAINER_ARCHITECTURE.md](docs/CONTAINER_ARCHITECTURE.md) | Container topology, networks, volumes |
+### Docker
 
-## Important Limitations
+```bash
+make build
+make up
+make demo
+```
 
-- **Simulator:** Qiskit-Aer executes the quantum circuit computationally; it does not reproduce physical hardware noise.
-- **Ledger:** The local hash-chain provides tamper evidence; it is **not** decentralized blockchain consensus.
-- **No AI/ML:** The competition build contains no ML inference.
-- **Empirical results:** Attack-detection metrics describe observed implementation behaviour under the tested threat model. They are not formal QDS security bounds.
+---
 
-## Docker Validation Status
+## Project Structure
 
-> **Docker runtime validation was NOT performed** because Docker is not
-> installed in the current development environment.  After Docker is installed,
-> follow the verification steps in [DOCKER_OPERATIONS.md](docs/DOCKER_OPERATIONS.md).
+```
+.
+├── apps/
+│   ├── api/                    # FastAPI verification server
+│   │   ├── main.py
+│   │   └── routes/
+│   │       ├── verify.py       # Core verification endpoint
+│   │       ├── ledger.py       # Ledger audit endpoints
+│   │       └── calibration.py  # Threshold calibration
+│   └── dashboard/
+│       └── app.py              # Streamlit judge mode dashboard
+├── src/
+│   ├── qds/
+│   │   ├── key_material.py     # Six-state key element generation (CSPRNG)
+│   │   ├── teleportation_qds.py # Teleportation circuit builder
+│   │   ├── verification.py     # Mismatch rate computation
+│   │   └── noise.py            # Depolarizing noise model
+│   ├── keyvault/               # Single-use key distribution sessions
+│   ├── detection/
+│   │   ├── findings.py         # Finding dataclass (multi-vector)
+│   │   ├── probes.py           # Independent detection probes
+│   │   ├── correlation.py      # Correlation engine
+│   │   ├── policy.py           # Threshold policy (fail-closed)
+│   │   └── forgery_probability.py # Analytical bounds
+│   ├── security/
+│   │   ├── envelope.py         # ML-DSA-65 (FIPS 204) PQC
+│   │   ├── identity.py         # PQC identity manager
+│   │   ├── nonce.py            # SQLite nonce guard
+│   │   └── rate_limit.py       # Token-bucket rate limiter
+│   ├── ledger/
+│   │   ├── hash_chain.py       # HMAC-SHA256 evidence ledger
+│   │   └── verifier.py         # Chain integrity auditor
+│   └── transport/
+│       └── client.py           # HTTP transport abstraction
+├── attacker/
+│   ├── provision.py            # Credential generation (alice, bob, mallory)
+│   ├── scenarios.py            # Attack scenario definitions
+│   ├── runner.py               # Attack execution script
+│   └── scenarios/
+│       ├── timing_oracle.py    # Side-channel test
+│       └── adaptive_x.py      # F3 regression test
+├── experiments/
+│   ├── blind_eval.py           # Blind evaluation (TP/TN/FP/FN)
+│   ├── forgery_curve.py        # P_forge vs disturbance sweep
+│   └── multi_vector_matrix.py  # Detection coverage matrix
+├── tests/
+│   ├── integration/            # FastAPI TestClient tests
+│   └── property/               # Hypothesis property-based tests
+├── docs/
+│   ├── SECURITY_ANALYSIS.md    # Formal adversary model
+│   ├── THREAT_MODEL.md         # Attack vector catalog
+│   ├── LIMITATIONS.md          # Environmental constraints
+│   └── workflow.md             # End-to-end workflow
+└── data/
+    └── calibration/
+        └── thresholds.json     # Shipped calibration artifact
+```
+
+---
+
+## Security Claims & Limitations
+
+### What we claim
+
+1. A six-state QDS protocol with P_forge ≤ 10⁻⁶ at L=300 against an
+   individual-measurement adversary without quantum memory.
+2. Multi-vector detection that catches forgery, replay, impersonation, and
+   channel manipulation independently (no short-circuit).
+3. Post-quantum request authentication via ML-DSA-65.
+4. Tamper-evident evidence via HMAC-SHA256 hash chain.
+
+### What we do NOT claim
+
+1. This is **not** a production quantum network. It runs on Qiskit Aer (simulator).
+2. We do **not** claim security against a coherent-attack adversary with quantum memory.
+3. The `pqcrypto` library is a Python binding; the implementation has not been
+   audited for side channels.
+4. The HMAC key is stored in an environment variable, not an HSM.
+
+See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the full list.
+
+---
+
+## Testing
+
+```bash
+# All tests
+make test-local
+
+# Integration only
+make test-integration
+
+# Property-based
+make test-property
+
+# Multi-vector detection matrix
+python -m experiments.multi_vector_matrix
+
+# Forgery curve
+python -m experiments.forgery_curve
+
+# Blind evaluation (requires running API)
+python -m experiments.blind_eval
+```
+
+---
+
+## License
+
+Academic project for SIH 2026.

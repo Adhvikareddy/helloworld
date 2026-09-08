@@ -1,47 +1,70 @@
-# Q-SENTINEL Docker Compose — Isolated Hackathon Testbed
+# Q-SENTINEL v9 Docker Compose — Track B: Network-Isolated Testbed
+#
+# 4-Network Topology:
+#   qsentinel_kv     — Key material distribution (Alice → Verifiers only)
+#   qsentinel_api    — API verification network (API ↔ Dashboard, Attacker)
+#   qsentinel_ledger — Evidence ledger (API → Ledger only)
+#   qsentinel_mgmt   — Management/monitoring (Dashboard, operator access)
 #
 # Services:
 #   qsentinel-api       — FastAPI backend (L1/L2/L3/L4)
 #   qsentinel-dashboard — Streamlit Judge Mode UI
-#   qsentinel-attacker  — Adversarial test client
-#   qsentinel-rdp       — Lightweight desktop for judge access
+#   qsentinel-attacker  — Adversarial test client (mallory credential)
 #
-# Network:
-#   qsentinel_internal  — Isolated bridge network for all services
-#
-# Volumes:
-#   qsentinel_data      — Persistent SQLite ledger + calibration data
+# USP: Network isolation ensures the attacker cannot directly access
+# the keyvault or ledger services, matching the adversary model in §3.1.
 
 networks:
-  qsentinel_internal:
+  qsentinel_kv:
+    driver: bridge
+    internal: true  # No external access
+  qsentinel_api:
+    driver: bridge
+  qsentinel_ledger:
+    driver: bridge
+    internal: true  # No external access
+  qsentinel_mgmt:
     driver: bridge
 
 volumes:
   qsentinel_data:
+  qsentinel_keys:
 
 services:
 
   # ──────────────────────────────────────────────────────────────
   # Q-SENTINEL API — FastAPI hosting L3 → L1 → L2 → L4
+  # Connects to: kv (read keys), api (serve requests), ledger (write evidence)
   # ──────────────────────────────────────────────────────────────
   qsentinel-api:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: Dockerfile
+    environment:
+      - QSENTINEL_LEDGER_SECRET=${QSENTINEL_LEDGER_SECRET:-change_me_in_production}
+      - QSENTINEL_DB_PATH=/app/data/ledger.db
+      - QSENTINEL_NONCE_DB=/app/data/nonces.db
     volumes:
       - qsentinel_data:/app/data
+      - qsentinel_keys:/app/keys:ro  # Read-only access to key material
     networks:
-      - qsentinel_internal
-    # No host port exposed — accessed only via internal network
-    # Dashboard and Attacker reach it at http://qsentinel-api:8000
+      - qsentinel_kv
+      - qsentinel_api
+      - qsentinel_ledger
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health')"]
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
 
   # ──────────────────────────────────────────────────────────────
   # Q-SENTINEL Dashboard — Streamlit Judge Mode
+  # Connects to: api (send verification requests), mgmt (expose to operator)
   # ──────────────────────────────────────────────────────────────
   qsentinel-dashboard:
     build:
@@ -55,10 +78,18 @@ services:
     ports:
       - "8501:8501"
     networks:
-      - qsentinel_internal
+      - qsentinel_api
+      - qsentinel_mgmt
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   # ──────────────────────────────────────────────────────────────
   # Q-SENTINEL Attacker — Adversarial test client
+  # Connects to: api ONLY — cannot reach keyvault or ledger directly
+  # This enforces the adversary model: mallory can submit API requests
+  # but cannot access key material or tamper with the ledger directly.
   # ──────────────────────────────────────────────────────────────
   qsentinel-attacker:
     build:
@@ -66,30 +97,14 @@ services:
       dockerfile: services/attacker/Dockerfile
     environment:
       - QSENTINEL_API_URL=http://qsentinel-api:8000
-      - QSENTINEL_DB_PATH=/app/data/ledger.db
-    volumes:
-      - qsentinel_data:/app/data
+      # Attacker does NOT get QSENTINEL_DB_PATH — cannot access ledger
     depends_on:
       qsentinel-api:
         condition: service_healthy
     networks:
-      - qsentinel_internal
-
-  # ──────────────────────────────────────────────────────────────
-  # Q-SENTINEL RDP — Lightweight desktop for judge/operator
-  # ──────────────────────────────────────────────────────────────
-  # Image: lscr.io/linuxserver/webtop:ubuntu-xfce
-  # Source: https://docs.linuxserver.io/images/docker-webtop/
-  # This is the ONLY container that exposes a host-facing port for
-  # human interaction.  It does NOT run Q-SENTINEL logic.
-  qsentinel-rdp:
-    image: lscr.io/linuxserver/webtop:ubuntu-xfce
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    ports:
-      - "3389:3000"
-    networks:
-      - qsentinel_internal
-    # No Docker socket, no privileged, no extra ports
+      - qsentinel_api
+      # NOTE: attacker is NOT on qsentinel_kv or qsentinel_ledger networks
+    deploy:
+      resources:
+        limits:
+          memory: 512M

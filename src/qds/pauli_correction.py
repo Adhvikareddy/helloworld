@@ -11,9 +11,7 @@ This restores the teleported state on q2 regardless of the Bell-measurement
 outcome.  Without correction the teleported state is one of four equally
 likely rotations of the original.
 
-In the Qiskit circuit this is implemented using classical conditioning:
-  qc.x(qr[2]).c_if(cr[1], 1)
-  qc.z(qr[2]).c_if(cr[0], 1)
+Uses Qiskit's `if_test` context blocks instead of the deprecated `c_if`.
 """
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 
@@ -38,5 +36,9 @@ def apply_pauli_correction(
     target_qubit : int
         Index of the receiver qubit in qr (default 2).
     """
-    qc.x(qr[target_qubit]).c_if(cr[1], 1)
-    qc.z(qr[target_qubit]).c_if(cr[0], 1)
+    with qc.if_test((cr[1], 1)):
+        qc.x(qr[target_qubit])
+    
+    with qc.if_test((cr[0], 1)):
+        qc.z(qr[target_qubit])
+

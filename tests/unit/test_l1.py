@@ -146,10 +146,9 @@ class TestModularFunctions:
         qc = QuantumCircuit(qr, cr)
         # Should not raise
         apply_pauli_correction(qc, qr, cr, target_qubit=2)
-        # Verify gates were added
+        # v9 uses if_test context blocks, which produce 'if_else' operations
         gate_names = [inst.operation.name for inst in qc.data]
-        assert "x" in gate_names
-        assert "z" in gate_names
+        assert "if_else" in gate_names
 
     def test_projective_measurement_x(self):
         from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister

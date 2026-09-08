@@ -1,82 +1,139 @@
+"""
+Q-SENTINEL Append-Only Evidence Ledger.
+
+Tamper-evident SQLite-backed ledger.
+Uses HMAC-SHA256 to prevent an adversary with DB write access from forging the chain.
+Uses BEGIN IMMEDIATE for atomicity to prevent race conditions.
+"""
 import sqlite3
+import hmac
 import hashlib
 import json
 import os
+import time
+
+# In a real system, this key would be in an HSM.
+# For Track A, it's injected via env var.
+LEDGER_SECRET = os.environ.get("QSENTINEL_LEDGER_SECRET", "default_insecure_secret_for_demo").encode('utf-8')
 
 class EvidenceLedger:
-    """
-    Append-only local hash-chain for Q-SENTINEL.
-    """
+    
     def __init__(self, db_path="data/ledger.db"):
         self.db_path = db_path
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self.cursor = self.conn.cursor()
         self._init_db()
 
     def _init_db(self):
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS evidence (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_id TEXT UNIQUE,
-                timestamp TEXT,
-                session_id TEXT,
-                signer_id TEXT,
-                verifier_id TEXT,
-                decision TEXT,
-                reason TEXT,
-                deviation_score REAL,
-                chi_square REAL,
-                threshold_low REAL,
-                threshold_high REAL,
-                baseline_version TEXT,
-                detector_version TEXT,
-                experiment_id TEXT,
-                previous_hash TEXT,
-                current_hash TEXT
-            )
-        ''')
-        self.conn.commit()
+        # We don't hold a long-lived connection to avoid threading issues
+        # and enforce transaction boundaries properly.
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS evidence (
+                    seq_num INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT UNIQUE NOT NULL,
+                    timestamp REAL NOT NULL,
+                    session_id TEXT NOT NULL,
+                    signer_id TEXT NOT NULL,
+                    verifier_id TEXT NOT NULL,
+                    decision TEXT NOT NULL,
+                    findings TEXT NOT NULL,
+                    experiment_id TEXT,
+                    previous_hash TEXT NOT NULL,
+                    current_hash TEXT NOT NULL,
+                    signature TEXT NOT NULL
+                )
+            ''')
+            
+            # Create genesis block if table is empty
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM evidence")
+            if cursor.fetchone()[0] == 0:
+                self._insert_genesis(conn)
+                
+            conn.commit()
 
-    def _get_last_hash(self) -> str:
-        self.cursor.execute("SELECT current_hash FROM evidence ORDER BY id DESC LIMIT 1")
-        row = self.cursor.fetchone()
-        return row[0] if row else "0000000000000000000000000000000000000000000000000000000000000000"
-
-    def record_event(self, event_data: dict) -> str:
-        previous_hash = self._get_last_hash()
+    def _insert_genesis(self, conn: sqlite3.Connection):
+        """Insert the genesis block."""
+        genesis_hash = "0" * 64
+        genesis_sig = hmac.new(LEDGER_SECRET, genesis_hash.encode(), hashlib.sha256).hexdigest()
         
-        # Canonicalize event
-        # Only include specific fields to avoid hash mismatch issues on verification
-        canonical_fields = {
-            k: v for k, v in event_data.items() 
-            if k not in ['previous_hash', 'current_hash'] and v is not None
-        }
-        
-        canonical_event = json.dumps(canonical_fields, sort_keys=True)
-        current_hash = hashlib.sha256((previous_hash + canonical_event).encode('utf-8')).hexdigest()
-        
-        self.cursor.execute('''
+        conn.execute('''
             INSERT INTO evidence (
                 event_id, timestamp, session_id, signer_id, verifier_id, decision,
-                reason, deviation_score, chi_square, threshold_low, threshold_high,
-                baseline_version, detector_version, experiment_id, previous_hash, current_hash
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                findings, experiment_id, previous_hash, current_hash, signature
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            event_data.get('event_id'), event_data.get('timestamp'), event_data.get('session_id'),
-            event_data.get('signer_id'), event_data.get('verifier_id'), event_data.get('decision'),
-            event_data.get('reason'), event_data.get('deviation_score'), event_data.get('chi_square'),
-            event_data.get('threshold_low'), event_data.get('threshold_high'),
-            event_data.get('baseline_version'), event_data.get('detector_version'),
-            event_data.get('experiment_id'), previous_hash, current_hash
+            "genesis", 0.0, "genesis", "system", "system", "INFO",
+            "[]", None, "0"*64, genesis_hash, genesis_sig
         ))
-        self.conn.commit()
-        return current_hash
+
+    def record_event(self, event_data: dict) -> str:
+        """
+        Record a verification event in the ledger.
+        Uses BEGIN IMMEDIATE to prevent read-modify-write races.
+        """
+        event_id = event_data.get('event_id', f"evt-{time.time()}")
+        
+        # We need isolation for the read of the previous hash and the write of the new one
+        with sqlite3.connect(self.db_path, isolation_level='IMMEDIATE') as conn:
+            cursor = conn.cursor()
+            
+            # Read last hash strictly within the transaction
+            cursor.execute("SELECT seq_num, current_hash FROM evidence ORDER BY seq_num DESC LIMIT 1")
+            last_row = cursor.fetchone()
+            seq_num = last_row[0] + 1
+            previous_hash = last_row[1]
+            
+            canonical_fields = {
+                "seq_num": seq_num,
+                "event_id": event_id,
+                "timestamp": event_data.get('timestamp', time.time()),
+                "session_id": event_data['session_id'],
+                "signer_id": event_data['signer_id'],
+                "verifier_id": event_data['verifier_id'],
+                "decision": event_data['decision'],
+                "findings": event_data.get('findings', []),
+                "experiment_id": event_data.get('experiment_id')
+            }
+            
+            # Findings is a list of dicts, we serialize it to JSON for storage
+            findings_json = json.dumps(canonical_fields['findings'], sort_keys=True)
+            canonical_fields['findings'] = findings_json
+            
+            canonical_event = json.dumps(canonical_fields, sort_keys=True).encode('utf-8')
+            
+            # 1. Compute Hash over (prev_hash || canonical_event)
+            hash_input = previous_hash.encode('utf-8') + canonical_event
+            current_hash = hashlib.sha256(hash_input).hexdigest()
+            
+            # 2. Compute HMAC signature over current_hash to prove it was generated by the system
+            signature = hmac.new(LEDGER_SECRET, current_hash.encode('utf-8'), hashlib.sha256).hexdigest()
+            
+            cursor.execute('''
+                INSERT INTO evidence (
+                    event_id, timestamp, session_id, signer_id, verifier_id, decision,
+                    findings, experiment_id, previous_hash, current_hash, signature
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                canonical_fields['event_id'], canonical_fields['timestamp'], canonical_fields['session_id'],
+                canonical_fields['signer_id'], canonical_fields['verifier_id'], canonical_fields['decision'],
+                canonical_fields['findings'], canonical_fields['experiment_id'], previous_hash, current_hash, signature
+            ))
+            
+            conn.commit()
+            return event_id
 
     def get_event(self, event_id: str) -> dict:
-        self.cursor.execute("SELECT * FROM evidence WHERE event_id=?", (event_id,))
-        row = self.cursor.fetchone()
-        if not row:
-            return None
-        cols = [description[0] for description in self.cursor.description]
-        return dict(zip(cols, row))
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM evidence WHERE event_id=?", (event_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            result = dict(row)
+            result['findings'] = json.loads(result['findings'])
+            return result
+
+# Global instance
+global_ledger = EvidenceLedger()

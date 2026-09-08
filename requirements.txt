@@ -1,23 +1,29 @@
 # Q-SENTINEL Python Dependencies
 # All versions pinned for reproducibility.
-# Docker images use Python 3.11 — versions chosen for 3.11 compatibility.
+# Docker images use python:3.11-slim as base.
+# Track A native development uses system Python (3.14+).
 
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-pydantic==2.7.4
+# Core
+fastapi==0.133.1
+uvicorn[standard]==0.41.0
+pydantic==2.12.5
 
 # Quantum simulation
 qiskit==1.1.1
 qiskit-aer==0.14.2
-numpy>=1.26,<2.0
-scipy>=1.13,<1.14
+numpy>=1.26
+scipy>=1.13
+
+# Post-quantum cryptography (Module-Lattice DSA, FIPS 204)
+# Note: Not machine learning.
+pqcrypto==1.0.0
 
 # Dashboard
-streamlit==1.36.0
+streamlit==1.54.0
 
-# HTTP client (attacker + dashboard)
-requests==2.32.3
+# HTTP client
+httpx==0.28.1
 
 # Testing
-pytest==8.2.2
-httpx==0.27.0
+pytest==9.1.1
+hypothesis>=6.100

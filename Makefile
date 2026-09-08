@@ -1,7 +1,7 @@
-.PHONY: build up down test calibrate blind demo \
+.PHONY: build up down test test-local calibrate blind demo \
        attack-all attack-forgery-a attack-forgery-b attack-replay \
        attack-impersonation attack-unauthorized attack-channel \
-       attack-ledger verify-ledger logs ps
+       attack-ledger verify-ledger logs ps provision
 
 # ── Docker lifecycle ──────────────────────────────────────────
 build:
@@ -28,7 +28,23 @@ logs-attacker:
 logs-dashboard:
 	docker compose logs --tail=100 qsentinel-dashboard
 
-# ── Tests ─────────────────────────────────────────────────────
+# ── Track A (Native, no Docker) ───────────────────────────────
+test-local:
+	set OPENBLAS_NUM_THREADS=1 && python -m pytest tests/ -v
+
+test-integration:
+	set OPENBLAS_NUM_THREADS=1 && python -m pytest tests/integration/ -v
+
+test-property:
+	set OPENBLAS_NUM_THREADS=1 && python -m pytest tests/property/ -v
+
+serve:
+	uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+provision:
+	set PYTHONPATH=. && python attacker/provision.py
+
+# ── Tests (Docker) ────────────────────────────────────────────
 test:
 	docker compose exec qsentinel-api pytest tests/ -v
 

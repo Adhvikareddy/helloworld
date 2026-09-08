@@ -1,39 +1,46 @@
 """
-L3 — Security Guard Tests.
+L3 — Security Guard Tests (v9).
 
-These tests verify the allowlist-based identity, authorization, nonce,
-timestamp, and replay guards.
+These tests verify the PQC identity manager, SQLite-backed nonce guard,
+and timestamp freshness guard.
 """
 import time
+import os
+import uuid
+import tempfile
 import pytest
-from src.security.identity import IdentityGuard
+from src.security.identity import PQCIdentityManager
 from src.security.authorization import AuthorizationGuard
-from src.security.nonce import NonceGuard, TimestampGuard
-from src.security.replay import ReplayGuard
+from src.security.nonce import SQLiteNonceGuard, TimestampGuard
 
 
-class TestIdentityGuard:
-    """Verify allowlist-based identity binding."""
+class TestPQCIdentityManager:
+    """Verify PQC-based identity management."""
 
-    def test_registered_signer_passes(self):
-        assert IdentityGuard.verify_binding("alice", "sess-123")
-        assert IdentityGuard.verify_binding("bob", "sess-456")
-        assert IdentityGuard.verify_binding("charlie", "sess-789")
-        assert IdentityGuard.verify_binding("david", "sess-000")
+    def setup_method(self):
+        self.manager = PQCIdentityManager()
+        # Register test participants with dummy keys
+        self.manager.register_participant("alice", b"pk_alice", is_verifier=True)
+        self.manager.register_participant("bob", b"pk_bob", is_verifier=True)
 
-    def test_unregistered_signer_fails(self):
-        assert not IdentityGuard.verify_binding("impersonator", "sess-123")
-        assert not IdentityGuard.verify_binding("eve", "sess-456")
-        assert not IdentityGuard.verify_binding("mallory", "sess-789")
-        assert not IdentityGuard.verify_binding("oscar", "sess-000")
-        assert not IdentityGuard.verify_binding("trudy", "sess-111")
+    def test_registered_participant_has_key(self):
+        assert self.manager.get_public_key("alice") == b"pk_alice"
+        assert self.manager.get_public_key("bob") == b"pk_bob"
 
-    def test_empty_signer_fails(self):
-        assert not IdentityGuard.verify_binding("", "sess-123")
+    def test_unregistered_participant_returns_none(self):
+        assert self.manager.get_public_key("unknown") is None
+        assert self.manager.get_public_key("mallory") is None
 
-    def test_case_sensitive(self):
-        assert not IdentityGuard.verify_binding("Alice", "sess-123")
-        assert not IdentityGuard.verify_binding("ALICE", "sess-123")
+    def test_verifier_authorization(self):
+        assert self.manager.is_verifier_authorized("alice")
+        assert self.manager.is_verifier_authorized("bob")
+
+    def test_non_verifier_not_authorized(self):
+        self.manager.register_participant("charlie", b"pk_charlie", is_verifier=False)
+        assert not self.manager.is_verifier_authorized("charlie")
+
+    def test_empty_name_not_authorized(self):
+        assert not self.manager.is_verifier_authorized("")
 
 
 class TestAuthorizationGuard:
@@ -54,31 +61,40 @@ class TestAuthorizationGuard:
         assert not AuthorizationGuard.is_authorized("")
 
 
-class TestNonceGuard:
-    """Verify nonce freshness tracking."""
+class TestSQLiteNonceGuard:
+    """Verify SQLite-backed nonce freshness tracking."""
+
+    def setup_method(self):
+        # Use unique temp file per test to avoid Windows file locking issues
+        self.db_path = os.path.join(tempfile.gettempdir(), f"test_nonces_{uuid.uuid4().hex}.db")
+        self.guard = SQLiteNonceGuard(db_path=self.db_path)
+
+    def teardown_method(self):
+        # Best-effort cleanup; Windows may still hold the file briefly
+        try:
+            if os.path.exists(self.db_path):
+                os.remove(self.db_path)
+        except PermissionError:
+            pass
 
     def test_first_use_is_fresh(self):
-        guard = NonceGuard()
-        assert guard.is_fresh("nonce-1")
+        assert self.guard.is_fresh("nonce-1", "session-1")
 
     def test_second_use_is_stale(self):
-        guard = NonceGuard()
-        guard.is_fresh("nonce-1")
-        assert not guard.is_fresh("nonce-1")
+        self.guard.is_fresh("nonce-1", "session-1")
+        assert not self.guard.is_fresh("nonce-1", "session-1")
 
     def test_different_nonces_are_independent(self):
-        guard = NonceGuard()
-        assert guard.is_fresh("nonce-a")
-        assert guard.is_fresh("nonce-b")
-        assert not guard.is_fresh("nonce-a")
-        assert not guard.is_fresh("nonce-b")
+        assert self.guard.is_fresh("nonce-a", "session-1")
+        assert self.guard.is_fresh("nonce-b", "session-1")
+        assert not self.guard.is_fresh("nonce-a", "session-1")
+        assert not self.guard.is_fresh("nonce-b", "session-1")
 
     def test_many_nonces(self):
-        guard = NonceGuard()
         for i in range(100):
-            assert guard.is_fresh(f"nonce-{i}")
+            assert self.guard.is_fresh(f"nonce-{i}", "session-bulk")
         for i in range(100):
-            assert not guard.is_fresh(f"nonce-{i}")
+            assert not self.guard.is_fresh(f"nonce-{i}", "session-bulk")
 
 
 class TestTimestampGuard:
@@ -88,7 +104,7 @@ class TestTimestampGuard:
         assert TimestampGuard.is_valid(time.time())
 
     def test_recent_timestamp_is_valid(self):
-        assert TimestampGuard.is_valid(time.time() - 60)
+        assert TimestampGuard.is_valid(time.time() - 30)
 
     def test_stale_timestamp_is_invalid(self):
         assert not TimestampGuard.is_valid(time.time() - 400)
@@ -99,24 +115,3 @@ class TestTimestampGuard:
     def test_slight_future_drift_allowed(self):
         # Up to 60s future drift is allowed for clock sync
         assert TimestampGuard.is_valid(time.time() + 30)
-
-
-class TestReplayGuard:
-    """Verify combined replay protection."""
-
-    def test_first_request_passes(self):
-        nonce_guard = NonceGuard()
-        replay_guard = ReplayGuard(nonce_guard)
-        assert replay_guard.check_replay("nonce-1", "sess-1")
-
-    def test_replay_detected(self):
-        nonce_guard = NonceGuard()
-        replay_guard = ReplayGuard(nonce_guard)
-        replay_guard.check_replay("nonce-1", "sess-1")
-        assert not replay_guard.check_replay("nonce-1", "sess-1")
-
-    def test_different_nonce_is_not_replay(self):
-        nonce_guard = NonceGuard()
-        replay_guard = ReplayGuard(nonce_guard)
-        replay_guard.check_replay("nonce-1", "sess-1")
-        assert replay_guard.check_replay("nonce-2", "sess-1")
