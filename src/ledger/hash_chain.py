@@ -132,8 +132,27 @@ class EvidenceLedger:
             if not row:
                 return None
             result = dict(row)
-            result['findings'] = json.loads(result['findings'])
+            try:
+                result['findings'] = json.loads(result['findings'])
+            except Exception:
+                pass
             return result
+
+    def get_recent_events(self, limit: int = 50) -> list:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM evidence ORDER BY seq_num DESC LIMIT ?", (limit,))
+            rows = cursor.fetchall()
+            events = []
+            for row in rows:
+                r = dict(row)
+                try:
+                    r['findings'] = json.loads(r['findings'])
+                except Exception:
+                    pass
+                events.append(r)
+            return events
 
 # Global instance
 global_ledger = EvidenceLedger()

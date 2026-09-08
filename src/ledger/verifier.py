@@ -9,10 +9,10 @@ import hashlib
 import json
 from src.ledger.hash_chain import LEDGER_SECRET
 
-def verify_ledger(db_path: str = "data/ledger.db") -> bool:
+def audit_ledger(db_path: str = "data/ledger.db") -> dict:
     """
-    Verify the integrity of the entire ledger.
-    Returns True if valid, False if tampered.
+    Audit the integrity of the entire ledger.
+    Returns a dict with valid status, events_checked, and broken_at if tampered.
     """
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
@@ -22,18 +22,16 @@ def verify_ledger(db_path: str = "data/ledger.db") -> bool:
         rows = cursor.fetchall()
         
         if not rows:
-            return True # Empty ledger is valid
+            return {"valid": True, "chain_valid": True, "events_checked": 0, "broken_at": None}
             
         # Check Genesis
         genesis = rows[0]
         if genesis['event_id'] != 'genesis':
-            print("Genesis block tampered.")
-            return False
+            return {"valid": False, "chain_valid": False, "events_checked": 1, "broken_at": "genesis"}
             
         expected_sig = hmac.new(LEDGER_SECRET, genesis['current_hash'].encode('utf-8'), hashlib.sha256).hexdigest()
         if genesis['signature'] != expected_sig:
-            print("Genesis signature invalid.")
-            return False
+            return {"valid": False, "chain_valid": False, "events_checked": 1, "broken_at": "genesis_signature"}
             
         previous_hash = genesis['current_hash']
         
@@ -42,8 +40,7 @@ def verify_ledger(db_path: str = "data/ledger.db") -> bool:
             
             # 1. Verify continuous linkage
             if row['previous_hash'] != previous_hash:
-                print(f"Chain broken at seq_num {row['seq_num']}: previous_hash mismatch.")
-                return False
+                return {"valid": False, "chain_valid": False, "events_checked": i, "broken_at": row['event_id']}
                 
             # 2. Verify Canonical Event Hash
             canonical_fields = {
@@ -62,15 +59,20 @@ def verify_ledger(db_path: str = "data/ledger.db") -> bool:
             expected_hash = hashlib.sha256(hash_input).hexdigest()
             
             if row['current_hash'] != expected_hash:
-                print(f"Hash mismatch at seq_num {row['seq_num']}. Data tampered.")
-                return False
+                return {"valid": False, "chain_valid": False, "events_checked": i, "broken_at": row['event_id']}
                 
             # 3. Verify HMAC signature (Proof of Authorship)
             expected_sig = hmac.new(LEDGER_SECRET, row['current_hash'].encode('utf-8'), hashlib.sha256).hexdigest()
             if row['signature'] != expected_sig:
-                print(f"Signature mismatch at seq_num {row['seq_num']}. Forge attempt detected.")
-                return False
+                return {"valid": False, "chain_valid": False, "events_checked": i, "broken_at": row['event_id']}
                 
             previous_hash = row['current_hash']
             
-        return True
+        return {"valid": True, "chain_valid": True, "events_checked": len(rows), "broken_at": None}
+
+def verify_ledger(db_path: str = "data/ledger.db") -> bool:
+    """
+    Verify the integrity of the entire ledger.
+    Returns True if valid, False if tampered.
+    """
+    return audit_ledger(db_path)["valid"]

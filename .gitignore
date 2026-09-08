@@ -35,3 +35,9 @@ data/*.json
 # Docker
 .docker/
 
+
+apps/dashboard/react-app/node_modules/
+
+apps/dashboard/react-app/dist/
+
+qsentinel_sessions.db

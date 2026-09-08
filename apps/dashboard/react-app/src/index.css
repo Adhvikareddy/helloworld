@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #07090e;
+    color: #e2e8f0;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(17, 24, 39, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-card-hover {
+    background: rgba(17, 24, 39, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    transition: all 0.2s ease;
+  }
+
+  .glass-card-hover:hover {
+    border-color: rgba(0, 242, 254, 0.25);
+    box-shadow: 0 0 30px rgba(0, 242, 254, 0.08), 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-scenario {
+    @apply w-full px-4 py-3 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center gap-2 justify-center;
+  }
+
+  .status-chip {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border;
+  }
+
+  .decision-accept {
+    @apply text-emerald-400 border-emerald-500/30 bg-emerald-500/10;
+  }
+
+  .decision-reject {
+    @apply text-rose-400 border-rose-500/30 bg-rose-500/10;
+  }
+
+  .decision-quarantine {
+    @apply text-amber-400 border-amber-500/30 bg-amber-500/10;
+  }
+
+  .decision-alarm {
+    @apply text-purple-400 border-purple-500/30 bg-purple-500/10;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 50%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
