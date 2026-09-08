@@ -20,6 +20,23 @@ st.set_page_config(page_title="Q-SENTINEL JUDGE MODE", layout="wide")
 st.title("⚛️ Q-SENTINEL JUDGE MODE")
 st.caption("SIH 2026 · PS26141 · Egreen Quanta · Blockchain & Cybersecurity")
 
+# ── Calibration Status ─────────────────────────────────────────
+try:
+    cal_resp = requests.get(f"{API_URL}/v1/calibration/status", timeout=5)
+    if cal_resp.status_code == 200:
+        cal = cal_resp.json()
+        cal_ver = cal.get("baseline_version", "unknown")
+        thresholds = cal.get("thresholds", {})
+        if "uncalibrated" in str(cal_ver):
+            st.warning(f"⚠️ System is UNCALIBRATED — using fallback thresholds. "
+                       f"Run `make calibrate` first.")
+        else:
+            st.success(f"✅ Calibrated: {cal_ver} | "
+                       f"τ_low={thresholds.get('tau_low', '?')} | "
+                       f"τ_high={thresholds.get('tau_high', '?')}")
+except Exception:
+    st.info("ℹ️ Could not reach API for calibration status.")
+
 # ── Mode selector ──────────────────────────────────────────────
 mode = st.radio("Experiment Mode", ["🔴 LIVE EXPERIMENT", "📁 RECORDED RESULT"],
                 horizontal=True, index=0)

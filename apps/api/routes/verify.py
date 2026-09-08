@@ -50,30 +50,69 @@ class VerifyResponse(BaseModel):
     threshold_high: Optional[float]
     evidence_id: str
     latency_ms: float
+    calibration_status: str
+
+
+def _record_l3_rejection(req: VerifyRequest, reason: str) -> str:
+    """Record an L3 rejection in the evidence ledger and return the event_id."""
+    event_id = f"evt-{uuid.uuid4()}"
+    event_data = {
+        "event_id": event_id,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "session_id": req.session_id,
+        "signer_id": req.signer_id,
+        "verifier_id": req.verifier_id,
+        "decision": "REJECT",
+        "reason": reason,
+        "experiment_id": req.experiment_id,
+    }
+    ledger.record_event(event_data)
+    return event_id
+
 
 @router.post("/verify", response_model=VerifyResponse)
 def verify_qds(req: VerifyRequest):
+    import time as _time
+    start_time = _time.time()
+
     # L3: Security Guard (Pre-flight)
     if not TimestampGuard.is_valid(req.timestamp):
-        # We use custom HTTP 403 response body or we can return a 403 status with REJECT msg
-        raise HTTPException(status_code=403, detail="REJECT: Stale timestamp")
-        
+        event_id = _record_l3_rejection(req, "stale_timestamp")
+        raise HTTPException(
+            status_code=403,
+            detail=f"REJECT: Stale timestamp (evidence_id={event_id})"
+        )
+
     if not replay_guard.check_replay(req.nonce, req.session_id):
-        raise HTTPException(status_code=403, detail="REJECT: Replay detected")
-        
+        event_id = _record_l3_rejection(req, "replay_detected")
+        raise HTTPException(
+            status_code=403,
+            detail=f"REJECT: Replay detected (evidence_id={event_id})"
+        )
+
     if not IdentityGuard.verify_binding(req.signer_id, req.session_id):
-        raise HTTPException(status_code=403, detail="REJECT: Invalid identity binding")
-        
+        event_id = _record_l3_rejection(req, "invalid_identity_binding")
+        raise HTTPException(
+            status_code=403,
+            detail=f"REJECT: Invalid identity binding (evidence_id={event_id})"
+        )
+
     if not AuthorizationGuard.is_authorized(req.verifier_id):
-        raise HTTPException(status_code=403, detail="REJECT: Unauthorized verifier")
+        event_id = _record_l3_rejection(req, "unauthorized_verifier")
+        raise HTTPException(
+            status_code=403,
+            detail=f"REJECT: Unauthorized verifier (evidence_id={event_id})"
+        )
 
     # L1: QDS Verification Core
     l1_result = qds_core.execute_verification(
-        shots=req.shots, 
+        shots=req.shots,
         disturbance_prob=req.disturbance_prob,
         is_invalid_signature=req.is_invalid_signature
     )
-    
+
+    cal_status = decision_policy.get_version()
+
     if not l1_result["protocol_valid"]:
         # Record REJECT event due to invalid signature
         event_id = f"evt-{uuid.uuid4()}"
@@ -98,26 +137,20 @@ def verify_qds(req: VerifyRequest):
             threshold_low=None,
             threshold_high=None,
             evidence_id=event_id,
-            latency_ms=l1_result["execution_metadata"]["latency_ms"]
+            latency_ms=l1_result["execution_metadata"]["latency_ms"],
+            calibration_status=cal_status,
         )
 
     # L2: Statistical Threat Detector
     p_hat = l1_result["basis_probabilities"]
     mu = baseline_mgr.get_mu_dict()
-    
-    # Check if baseline is ready
-    if decision_policy.get_version() == "uncalibrated":
-        # For the hackathon we can allow the uncalibrated baseline for demo purposes,
-        # but the spec says "Refuse production-style decisions: Missing calibration".
-        # We will check if the user is forcing uncalibrated demo
-        pass
 
     D = DetectorStatistics.compute_deviation(p_hat, mu)
     chi2 = DetectorStatistics.compute_chi_square(p_hat, mu, N=req.shots)
-    
+
     decision = decision_policy.evaluate(D)
     reason = "within_baseline" if decision == "ACCEPT" else "statistical_deviation"
-    
+
     # L4: Tamper-Evident Evidence Ledger
     event_id = f"evt-{uuid.uuid4()}"
     event_data = {
@@ -137,7 +170,9 @@ def verify_qds(req: VerifyRequest):
         "experiment_id": req.experiment_id
     }
     ledger.record_event(event_data)
-    
+
+    latency = (_time.time() - start_time) * 1000
+
     return VerifyResponse(
         decision=decision,
         reason=reason,
@@ -148,5 +183,6 @@ def verify_qds(req: VerifyRequest):
         threshold_low=decision_policy.thresholds.get("tau_low"),
         threshold_high=decision_policy.thresholds.get("tau_high"),
         evidence_id=event_id,
-        latency_ms=l1_result["execution_metadata"]["latency_ms"]
+        latency_ms=latency,
+        calibration_status=cal_status,
     )
