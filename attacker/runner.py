@@ -7,9 +7,10 @@ import httpx
 import time
 import json
 from src.transport.client import TransportClient
-from attacker.scenarios import AttackerHarness
+from attacker.harness import AttackerHarness
 from attacker.scenarios.timing_oracle import run_timing_oracle
 from attacker.scenarios.adaptive_x import run_adaptive_x_test
+
 
 def run_all_attacks():
     client = TransportClient("http://localhost:8000")

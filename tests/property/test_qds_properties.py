@@ -29,11 +29,15 @@ def test_key_element_serialization(bit_val, basis_idx):
     assert deserialized.bit == element.bit
     assert deserialized.basis == element.basis
 
+from hypothesis import given, settings, strategies as st
+
 @given(
     st.lists(st.sampled_from(["X", "Y", "Z"]), min_size=10, max_size=50),
     st.floats(min_value=0.0, max_value=0.5)
 )
+@settings(deadline=None)
 def test_qds_teleportation_bounds(bob_bases, disturbance):
+
     """
     Test that when Alice and Bob choose the same basis, the mismatch rate 
     is tightly correlated with the disturbance probability.

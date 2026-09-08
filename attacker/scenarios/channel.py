@@ -45,8 +45,17 @@ def run_channel(
     run_id = f"channel-{uuid.uuid4()}"
 
     for level_name in levels:
-        disturbance = DISTURBANCE_LEVELS.get(level_name, float(level_name))
+        if isinstance(level_name, (int, float)):
+            disturbance = float(level_name)
+        elif level_name in DISTURBANCE_LEVELS:
+            disturbance = DISTURBANCE_LEVELS[level_name]
+        else:
+            try:
+                disturbance = float(level_name)
+            except ValueError:
+                disturbance = 0.10
         for rep in range(repeats):
+
             started = datetime.datetime.utcnow().isoformat()
             payload = get_base_payload(
                 shots=shots,

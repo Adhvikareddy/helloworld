@@ -16,7 +16,9 @@ venv.bak/
 .pytest_cache/
 .coverage
 htmlcov/
-experiments/results/
+
+# Credentials / Keys
+attacker/credentials/*_sk.bin
 
 # Editor
 .vscode/
@@ -32,3 +34,4 @@ data/*.json
 
 # Docker
 .docker/
+

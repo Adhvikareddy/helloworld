@@ -6,6 +6,7 @@ Defines the QUARANTINE and REJECT thresholds.
 import json
 import os
 from typing import Tuple
+from src.calibration.analytical import derive_thresholds
 
 class DecisionPolicy:
     def __init__(self, filepath: str = "data/calibration/thresholds.json"):
@@ -38,6 +39,13 @@ class DecisionPolicy:
                 "version": self.version
             }, f, indent=2)
 
+    def calibrate(self, n: int = 33, p_err_honest: float = 0.01, alpha: float = 1e-4, version: str = "analytical_v91"):
+        """Calibrate thresholds analytically based on channel noise profile."""
+        tau_low = derive_thresholds(n, p_err_honest, alpha)
+        tau_high = max(0.15, tau_low + 0.10)
+        self.save_thresholds(tau_low, tau_high, version)
+        return tau_low, tau_high
+
     def get_thresholds(self) -> Tuple[float, float]:
         return self.tau_low, self.tau_high
         
@@ -45,14 +53,6 @@ class DecisionPolicy:
         return self.version
 
     def evaluate(self, D: float) -> str:
-        """
-        Evaluate a deviation score against the calibrated thresholds.
-        
-        Returns:
-            'ACCEPT' if D <= tau_low
-            'QUARANTINE' if tau_low < D <= tau_high
-            'REJECT' if D > tau_high
-        """
         if D <= self.tau_low:
             return "ACCEPT"
         elif D <= self.tau_high:
@@ -62,3 +62,4 @@ class DecisionPolicy:
 
 # Global policy instance
 global_policy = DecisionPolicy()
+
