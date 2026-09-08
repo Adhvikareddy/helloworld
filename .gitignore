@@ -26,11 +26,7 @@ attacker/credentials/*_sk.bin
 .DS_Store
 
 # Data
-data/*.db
-data/*.sqlite
-data/*.json
-!data/test_*.json
-!data/calibration/
+
 
 # Docker
 .docker/
@@ -40,4 +36,3 @@ apps/dashboard/react-app/node_modules/
 
 apps/dashboard/react-app/dist/
 
-qsentinel_sessions.db
