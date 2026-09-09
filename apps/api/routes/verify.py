@@ -147,12 +147,11 @@ def verify_qds(req: VerifyRequest, request: Request):
     latency = (time.time() - start_time) * 1000.0
     
     # 9. Role-based Response Tiering:
-    # Privileged roles (auditor/admin) receive complete diagnostic findings.
+    # Privileged auditor role receives complete diagnostic findings.
     # Regular verifiers receive a sanitised security policy notice on REJECT to prevent attacker reconnaissance.
     is_privileged = (
-        req.verifier_id in ["auditor", "admin"]
-        or req.verifier_id.endswith("_auditor")
-        or request.headers.get("x-role") in ["auditor", "admin"]
+        is_identity_valid
+        and global_pqc_identity.get_role(req.signer_id) == "auditor"
     )
     
     if decision == "REJECT" and not is_privileged:

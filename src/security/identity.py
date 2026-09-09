@@ -11,15 +11,21 @@ class PQCIdentityManager:
     def __init__(self):
         self.registered_pks = {}
         self.authorized_verifiers = set()
+        self.roles = {}
         
-    def register_participant(self, name: str, pk: bytes, is_verifier: bool = False):
-        """Register a participant's public key."""
+    def register_participant(self, name: str, pk: bytes, is_verifier: bool = False, role: str = "verifier"):
+        """Register a participant's public key and role."""
         self.registered_pks[name] = pk
         if is_verifier:
             self.authorized_verifiers.add(name)
+        self.roles[name] = role
             
     def get_public_key(self, name: str) -> bytes:
         return self.registered_pks.get(name)
+
+    def get_role(self, identity: str) -> str:
+        """Get the registered role for an identity."""
+        return self.roles.get(identity, "verifier")
         
     def is_verifier_authorized(self, name: str) -> bool:
         return name in self.authorized_verifiers

@@ -23,16 +23,15 @@ def load_identities():
                 
             for name, pk_b64 in registry.items():
                 pk = base64.b64decode(pk_b64)
-                is_verifier = (name in ["bob", "charlie", "auditor", "admin"])
-                global_pqc_identity.register_participant(name, pk, is_verifier=is_verifier)
+                is_verifier = (name in ["bob", "charlie", "auditor"])
+                role = "auditor" if name == "auditor" else "verifier"
+                global_pqc_identity.register_participant(name, pk, is_verifier=is_verifier, role=role)
                 
-            # Register auditor and admin roles for tiering demonstration
+            # Register auditor role for tiering demonstration
             if "bob" in registry:
                 bob_pk = base64.b64decode(registry["bob"])
                 if "auditor" not in registry:
-                    global_pqc_identity.register_participant("auditor", bob_pk, is_verifier=True)
-                if "admin" not in registry:
-                    global_pqc_identity.register_participant("admin", bob_pk, is_verifier=True)
+                    global_pqc_identity.register_participant("auditor", bob_pk, is_verifier=True, role="auditor")
         else:
             print(f"Warning: No public registry found in candidates: {candidate_paths}", flush=True)
     except Exception as e:
