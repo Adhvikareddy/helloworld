@@ -32,6 +32,11 @@ def send_distribute(
         verifiers = ["bob"]
     timestamp = time.time()
     nonce = f"nonce-{uuid.uuid4()}"
+    if disturbance > 0.0:
+        from apps.api.routes.testbed import _testbed_channel_state
+        _testbed_channel_state["perturbation"] = "depolarizing"
+        _testbed_channel_state["magnitude"] = disturbance
+
     req_payload = {
         "session_id": session_id,
         "signer_id": signer_id,
@@ -39,7 +44,6 @@ def send_distribute(
         "L": L,
         "nonce": nonce,
         "timestamp": timestamp,
-        "disturbance": disturbance,
     }
     key_path = f"attacker/credentials/{signer_id}_sk.bin"
     try:

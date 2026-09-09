@@ -40,8 +40,7 @@ def test_full_qds_v91_flow(client, provisioned_keys):
         "verifiers": ["bob", "charlie"],
         "L": 30,
         "nonce": f"nonce-dist-{uuid.uuid4()}",
-        "timestamp": time.time(),
-        "disturbance": 0.0
+        "timestamp": time.time()
     }
     dist_sig = PQCEnvelope.sign_payload(provisioned_keys["alice_sk"], dist_payload)
     dist_payload["signature"] = dist_sig
@@ -92,8 +91,7 @@ def test_impersonation_v91(client, provisioned_keys):
         "verifiers": ["bob"],
         "L": 30,
         "nonce": f"nonce-dist-{uuid.uuid4()}",
-        "timestamp": time.time(),
-        "disturbance": 0.0
+        "timestamp": time.time()
     }
     dist_sig = PQCEnvelope.sign_payload(provisioned_keys["alice_sk"], dist_payload)
     dist_payload["signature"] = dist_sig

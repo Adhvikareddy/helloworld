@@ -4,36 +4,56 @@ from typing import List, Dict, Any, Optional
 
 router = APIRouter()
 
+import os
+
 # In-memory store for active channel testbed parameters
-_testbed_state: Dict[str, float] = {
-    "disturbance": 0.0
+_testbed_channel_state: Dict[str, Any] = {
+    "perturbation": "none",
+    "magnitude": 0.0
 }
 
-class ChannelTestbedRequest(BaseModel):
-    disturbance: float = Field(..., ge=0.0, le=1.0, description="Noise parameter p in [0.0, 1.0]")
-    operator_signature: Optional[str] = Field(None, description="Operator signature for lab control")
+VALID_PERTURBATIONS = {"none", "depolarizing", "rx_only", "rz_only", "intercept_resend"}
 
-class ChannelTestbedResponse(BaseModel):
+class ChannelConfigRequest(BaseModel):
+    perturbation: str = Field("none", description="none | depolarizing | rx_only | rz_only | intercept_resend")
+    magnitude: float = Field(0.0, ge=0.0, le=1.0, description="Perturbation magnitude")
+
+class ChannelConfigResponse(BaseModel):
     status: str
-    disturbance: float
+    perturbation: str
+    magnitude: float
 
-@router.post("/channel", response_model=ChannelTestbedResponse)
-def set_channel_disturbance(req: ChannelTestbedRequest):
-    _testbed_state["disturbance"] = req.disturbance
-    return ChannelTestbedResponse(
+@router.post("/channel", response_model=ChannelConfigResponse)
+def set_channel_config(req: ChannelConfigRequest, request: Request):
+    expected_token = os.environ.get("QS_OPERATOR_TOKEN", "qs-operator-secret-token")
+    token = request.headers.get("x-operator-token")
+    if not token or token != expected_token:
+        raise HTTPException(status_code=403, detail="Forbidden: Operator token required")
+
+    if req.perturbation not in VALID_PERTURBATIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid perturbation: {req.perturbation}. Must be one of {sorted(VALID_PERTURBATIONS)}")
+
+    _testbed_channel_state["perturbation"] = req.perturbation
+    _testbed_channel_state["magnitude"] = req.magnitude
+    return ChannelConfigResponse(
         status="CONFIGURED",
-        disturbance=req.disturbance
+        perturbation=req.perturbation,
+        magnitude=req.magnitude
     )
 
-@router.get("/channel", response_model=ChannelTestbedResponse)
-def get_channel_disturbance():
-    return ChannelTestbedResponse(
+@router.get("/channel", response_model=ChannelConfigResponse)
+def get_channel_config():
+    return ChannelConfigResponse(
         status="ACTIVE",
-        disturbance=_testbed_state["disturbance"]
+        perturbation=_testbed_channel_state["perturbation"],
+        magnitude=_testbed_channel_state["magnitude"]
     )
+
+def get_active_channel_config() -> Dict[str, Any]:
+    return dict(_testbed_channel_state)
 
 def get_active_disturbance() -> float:
-    return _testbed_state["disturbance"]
+    return _testbed_channel_state["magnitude"]
 
 class AttackTriggerRequest(BaseModel):
     disturbance: Optional[float] = 0.25

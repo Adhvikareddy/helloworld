@@ -37,3 +37,17 @@ def get_noise_model(disturbance_prob: float) -> NoiseModel:
     
     return noise_model
 
+
+def get_channel_rotation(perturbation: str, magnitude: float):
+    """
+    Returns single-axis rotation axis and angle (in radians) for coherent channel perturbations.
+    Supported: 'rx_only', 'rz_only'.
+    """
+    import math
+    if perturbation == "rx_only":
+        return "rx", float(magnitude) * math.pi
+    elif perturbation == "rz_only":
+        return "rz", float(magnitude) * math.pi
+    return "none", 0.0
+
+

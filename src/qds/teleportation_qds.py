@@ -43,7 +43,9 @@ class TeleportationQDS:
             qc.h(qr[qubit_idx])
             qc.s(qr[qubit_idx])
 
-    def _build_circuit(self, alice_element: QuantumKeyElement, bob_basis: str, pure_x_rotation: bool = False, disturbance: float = 0.0) -> QuantumCircuit:
+    def _build_circuit(self, alice_element: QuantumKeyElement, bob_basis: str,
+                       pure_x_rotation: bool = False, disturbance: float = 0.0,
+                       perturbation: str = "none", magnitude: float = 0.0) -> QuantumCircuit:
         """
         Builds a single circuit representing the teleportation of ONE key element
         measured by Bob in his chosen basis.
@@ -59,10 +61,12 @@ class TeleportationQDS:
         qc.h(qr[1])
         qc.cx(qr[1], qr[2])
         
-        # Note: Depolarizing error on the channel is handled by the noise model.
-        # However, for the F3 regression test, we can force a pure X rotation here.
-        if pure_x_rotation and disturbance > 0.0:
-            qc.rx(disturbance * 3.14159, qr[2])
+        # Coherent rotations on the channel
+        eff_mag = magnitude if magnitude > 0.0 else disturbance
+        if (perturbation == "rx_only" or pure_x_rotation) and eff_mag > 0.0:
+            qc.rx(eff_mag * 3.141592653589793, qr[2])
+        elif perturbation == "rz_only" and eff_mag > 0.0:
+            qc.rz(eff_mag * 3.141592653589793, qr[2])
             
         # 3. Bell basis measurement (Alice)
         qc.cx(qr[0], qr[1])
@@ -83,7 +87,9 @@ class TeleportationQDS:
                        bob_bases: List[str], 
                        seed_material: str,
                        pure_x_rotation: bool = False,
-                       disturbance: float = 0.0) -> Tuple[List[int], dict]:
+                       disturbance: float = 0.0,
+                       perturbation: str = "none",
+                       magnitude: float = 0.0) -> Tuple[List[int], dict]:
         """
         Execute the quantum circuits for the full session (L elements).
         
@@ -93,6 +99,8 @@ class TeleportationQDS:
             seed_material: String used to derive a deterministic seed.
             pure_x_rotation: Boolean flag to enable F3 regression testing.
             disturbance: Float for pure_x_rotation magnitude.
+            perturbation: Perturbation type ('none', 'depolarizing', 'rx_only', 'rz_only', 'intercept_resend').
+            magnitude: Perturbation magnitude.
                            
         Returns:
             (bob_outcomes, metadata)
@@ -122,7 +130,9 @@ class TeleportationQDS:
                 alice_keys[i], 
                 bob_bases[i], 
                 pure_x_rotation=pure_x_rotation,
-                disturbance=disturbance
+                disturbance=disturbance,
+                perturbation=perturbation,
+                magnitude=magnitude
             ))
             
         # Run all circuits. shots=1 because it's a single copy transmission per element!

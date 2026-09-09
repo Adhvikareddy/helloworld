@@ -46,8 +46,7 @@ def _create_distribution_session(client, alice_sk, signer_id="alice"):
         "verifiers": ["bob"],
         "L": 30,
         "nonce": f"nonce-dist-{uuid.uuid4()}",
-        "timestamp": time.time(),
-        "disturbance": 0.0
+        "timestamp": time.time()
     }
     dist_payload["signature"] = PQCEnvelope.sign_payload(alice_sk, dist_payload)
     res_dist = client.post("/v1/qds/distribute", json=dist_payload)
