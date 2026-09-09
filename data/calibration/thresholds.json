@@ -1,10 +1,10 @@
 {
-  "tau_low": 0.13333333333333333,
-  "tau_high": 0.2,
+  "tau_low": 0.14285714285714285,
+  "tau_high": 0.21428571428571427,
   "version": "analytical_v92",
   "provenance": {
-    "n": 30,
-    "e_honest": 0.014729827005689073,
+    "n": 28,
+    "e_honest": 0.013713495749090856,
     "alpha": 0.0001,
     "derivation": "binom.ppf"
   }

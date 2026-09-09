@@ -1,4 +1,4 @@
-.PHONY: build up down test test-local calibrate blind demo \
+.PHONY: build up down test test-local calibrate blind demo evaluate \
        attack-all attack-forgery-a attack-forgery-b attack-replay \
        attack-impersonation attack-unauthorized attack-channel \
        attack-ledger verify-ledger logs ps provision
@@ -54,6 +54,14 @@ calibrate:
 
 blind:
 	docker compose exec qsentinel-api python -m experiments.blind_eval
+
+evaluate:
+	python -m experiments.noise_sweep
+	python -m experiments.adaptive_x
+	python -m experiments.blind_eval
+	python -m experiments.roc_curve
+	python -m experiments.concurrent_campaign
+	python -m experiments.latency_split
 
 # ── Attack Harness ────────────────────────────────────────────
 attack-all:
