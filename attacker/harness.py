@@ -89,3 +89,9 @@ class AttackerHarness:
         payload["signature"] = sig
         return payload
 
+    # 8. Transferability (Forgery by Verifier)
+    def forgery_by_verifier(self) -> Dict[str, Any]:
+        """Bob fabricates from his own records: Bob ACCEPTS, Charlie REJECTS."""
+        from attacker.scenarios.forgery_by_verifier import run_forgery_by_verifier
+        return run_forgery_by_verifier()
+

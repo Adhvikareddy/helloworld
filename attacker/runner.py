@@ -16,6 +16,7 @@ from attacker.scenarios.channel import run_channel
 from attacker.scenarios.ledger_tamper import run_ledger_tamper
 from attacker.scenarios.timing_oracle import run_timing_oracle
 from attacker.scenarios.adaptive_x import run_adaptive_x_test
+from attacker.scenarios.forgery_by_verifier import run_forgery_by_verifier
 from attacker.reporting import print_result, aggregate_results
 from attacker.client import get_base_payload, send_verify
 
@@ -100,11 +101,15 @@ def run_all_attacks():
         print_result(r)
 
     # 9. Timing Oracle & Adaptive Regressions
-    print("\n--- [9/9] Scenario: Timing Oracle & Adaptive Disturbance ---")
+    print("\n--- [9/10] Scenario: Timing Oracle & Adaptive Disturbance ---")
     valid_p = get_base_payload(signer_id="alice", verifier_id="bob")
     invalid_p = harness.impersonate_alice()
     run_timing_oracle(client, valid_p, invalid_p)
     run_adaptive_x_test(client)
+
+    # 10. Transferability (Forgery by Verifier)
+    print("\n--- [10/10] Scenario: Forgery by Verifier (Transferability) ---")
+    run_forgery_by_verifier()
 
     print("\n========================================================")
     print("      ALL ATTACK RUNNER SCENARIOS COMPLETED             ")
@@ -112,4 +117,15 @@ def run_all_attacks():
 
 
 if __name__ == "__main__":
-    run_all_attacks()
+    import argparse
+    parser = argparse.ArgumentParser(description="Q-SENTINEL Attack Execution Runner")
+    parser.add_argument("--attack", type=str, default=None, help="Specific attack scenario to run")
+    args = parser.parse_args()
+
+    if args.attack == "forgery_by_verifier":
+        print("\n--- Scenario: Forgery by Verifier (Transferability) ---")
+        run_forgery_by_verifier()
+    elif args.attack:
+        print(f"Unknown attack: {args.attack}")
+    else:
+        run_all_attacks()
