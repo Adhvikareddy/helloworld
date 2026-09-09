@@ -6,6 +6,7 @@ router = APIRouter()
 
 baseline_mgr = BaselineManager()
 from src.detection.policy import global_policy
+decision_policy = global_policy
 
 from src.detection.forgery_probability import compute_forgery_probability
 
@@ -33,6 +34,7 @@ def reload_calibration():
 @router.post("/calibrate")
 def run_calibration(fast: bool = True):
     import time
+    import os
     start = time.time()
     try:
         from src.calibration.grid_search import run_calibration as run_grid
@@ -52,7 +54,10 @@ def run_calibration(fast: bool = True):
             "baseline_version": baseline_mgr.get_version()
         }
     except Exception:
-        tau_low, tau_high = decision_policy.calibrate()
+        from src.calibration.measure_honest import measure_honest_baseline
+        configured_dist = float(os.environ.get("QS_CHANNEL_DISTURBANCE", "0.02"))
+        baseline = measure_honest_baseline(disturbance=configured_dist, trials=10, L=90)
+        tau_low, tau_high = decision_policy.calibrate(n=int(round(baseline["n_mean"])), p_err_honest=baseline["e_honest"])
         elapsed = time.time() - start
         return {
             "status": "calibrated",
@@ -60,7 +65,7 @@ def run_calibration(fast: bool = True):
             "tau_low": tau_low,
             "tau_high": tau_high,
             "duration_s": round(elapsed, 2),
-            "baseline_version": "analytical_v91"
+            "baseline_version": decision_policy.get_version()
         }
 
 @router.get("/forgery-curve")

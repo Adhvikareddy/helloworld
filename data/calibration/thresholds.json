@@ -1,5 +1,11 @@
 {
-  "tau_low": 0.0102,
-  "tau_high": 0.022,
-  "version": "v1-qiskit-calibrated"
+  "tau_low": 0.13333333333333333,
+  "tau_high": 0.2,
+  "version": "analytical_v92",
+  "provenance": {
+    "n": 30,
+    "e_honest": 0.014729827005689073,
+    "alpha": 0.0001,
+    "derivation": "binom.ppf"
+  }
 }

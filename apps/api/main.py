@@ -57,7 +57,10 @@ async def lifespan(app: FastAPI):
             print(f"[Startup] Calibration complete: version={global_policy.get_version()}, thresholds={global_policy.get_thresholds()}", flush=True)
         except Exception as e:
             print(f"[Startup] Error during calibration: {e}. Falling back to analytical.", flush=True)
-            global_policy.calibrate()
+            from src.calibration.measure_honest import measure_honest_baseline
+            configured_dist = float(os.environ.get("QS_CHANNEL_DISTURBANCE", "0.02"))
+            baseline = measure_honest_baseline(disturbance=configured_dist, trials=10, L=90)
+            global_policy.calibrate(n=int(round(baseline["n_mean"])), p_err_honest=baseline["e_honest"])
     yield
     # Cleanup
 
