@@ -99,14 +99,14 @@ npm run dev
 
 #### Option C: Verification & Smoke Tests
 ```bash
-# Full pytest suite (64/64 tests)
-python -m pytest tests/unit tests/integration tests/property -q
+# Full pytest suite (89/89 tests)
+python -m pytest tests/ -q
 
-# CLI Adversarial Attack Suite (9 scenarios)
+# Run full evaluation suite generating all 9 evidence CSVs
+make evaluate
+
+# CLI Adversarial Attack Suite
 python -m attacker.runner
-
-# End-to-end acceptance smoke test
-python scripts/e2e_smoke_test.py
 ```
 
 ### Docker
@@ -127,56 +127,60 @@ make demo
 │   ├── api/                    # FastAPI verification server
 │   │   ├── main.py
 │   │   └── routes/
-│   │       ├── verify.py       # Core verification endpoint
+│   │       ├── verify.py       # Core verification endpoint (constant-time, role-tiered)
 │   │       ├── ledger.py       # Ledger audit endpoints
-│   │       └── calibration.py  # Threshold calibration
+│   │       ├── testbed.py      # Operator-authenticated channel control
+│   │       └── calibration.py  # Measured baseline threshold calibration
 │   └── dashboard/
 │       └── app.py              # Streamlit judge mode dashboard
 ├── src/
 │   ├── qds/
 │   │   ├── key_material.py     # Six-state key element generation (CSPRNG)
-│   │   ├── teleportation_qds.py # Teleportation circuit builder
+│   │   ├── teleportation_qds.py # Teleportation circuit builder (coherent Rx/Rz rotations)
 │   │   ├── verification.py     # Mismatch rate computation
-│   │   └── noise.py            # Depolarizing noise model
+│   │   └── noise.py            # Depolarizing and rotational noise models
 │   ├── keyvault/               # Single-use key distribution sessions
 │   ├── detection/
 │   │   ├── findings.py         # Finding dataclass (multi-vector)
-│   │   ├── probes.py           # Independent detection probes
+│   │   ├── probes.py           # Independent detection probes (Auth, Freshness, Stats, Tomography)
 │   │   ├── correlation.py      # Correlation engine
-│   │   ├── policy.py           # Threshold policy (fail-closed)
+│   │   ├── policy.py           # Threshold policy (derived from measured baseline, fail-closed)
 │   │   └── forgery_probability.py # Analytical bounds
 │   ├── security/
 │   │   ├── envelope.py         # ML-DSA-65 (FIPS 204) PQC
-│   │   ├── identity.py         # PQC identity manager
+│   │   ├── identity.py         # PQC identity manager (with registered roles)
 │   │   ├── nonce.py            # SQLite nonce guard
 │   │   └── rate_limit.py       # Token-bucket rate limiter
 │   ├── ledger/
-│   │   ├── hash_chain.py       # HMAC-SHA256 evidence ledger
-│   │   └── verifier.py         # Chain integrity auditor
+│   │   ├── hash_chain.py       # HMAC-SHA256 evidence ledger (BEGIN IMMEDIATE concurrency, checkpoints)
+│   │   └── verifier.py         # Chain integrity auditor and checkpoint verifier
 │   └── transport/
 │       └── client.py           # HTTP transport abstraction
 ├── attacker/
-│   ├── provision.py            # Credential generation (alice, bob, mallory)
-│   ├── scenarios.py            # Attack scenario definitions
-│   ├── runner.py               # Attack execution script
+│   ├── provision.py            # Credential generation (alice, bob, charlie, mallory)
+│   ├── runner.py               # Attack execution script (--attack flag)
 │   └── scenarios/
-│       ├── timing_oracle.py    # Side-channel test
-│       └── adaptive_x.py      # F3 regression test
+│       ├── forgery_by_verifier.py # Transferability forgery scenario
+│       └── adaptive_x.py      # Coherent rotation scenario
 ├── experiments/
-│   ├── blind_eval.py           # Blind evaluation (TP/TN/FP/FN)
-│   ├── forgery_curve.py        # P_forge vs disturbance sweep
-│   └── multi_vector_matrix.py  # Detection coverage matrix
+│   ├── noise_sweep.py          # Honest channel baseline measurement
+│   ├── adaptive_x.py           # Coherent X-rotation evaluation
+│   ├── blind_eval.py           # Blind evaluation (Threat = Positive Class)
+│   ├── roc_curve.py            # ROC curve and AUC evaluation
+│   ├── concurrent_campaign.py  # Concurrency throughput and integrity benchmark
+│   ├── latency_split.py        # Constant-time latency split evaluation
+│   ├── forgery_curve.py        # P_forge vs key length / disturbance
+│   ├── multi_vector_matrix.py  # Multi-vector threat detection matrix
+│   └── results/                # Generated evidence CSV files (9 datasets)
 ├── tests/
-│   ├── integration/            # FastAPI TestClient tests
+│   ├── integration/            # FastAPI integration tests (16 tests)
+│   ├── unit/                   # Unit, compliance, and ledger tests
 │   └── property/               # Hypothesis property-based tests
-├── docs/
-│   ├── SECURITY_ANALYSIS.md    # Formal adversary model
-│   ├── THREAT_MODEL.md         # Attack vector catalog
-│   ├── LIMITATIONS.md          # Environmental constraints
-│   └── workflow.md             # End-to-end workflow
-└── data/
-    └── calibration/
-        └── thresholds.json     # Shipped calibration artifact
+└── docs/
+    ├── SECURITY_ANALYSIS.md    # Formal adversary model & who-knows-what-when matrix
+    ├── DELIVERABLES.md         # SIH PS26141 expected deliverables mapping table
+    ├── LIMITATIONS.md          # Protocol & environment constraints
+    └── workflow.md             # Step-by-step jury demonstration guide
 ```
 
 ---
@@ -185,22 +189,23 @@ make demo
 
 ### What we claim
 
-1. A six-state QDS protocol with P_forge ≤ 10⁻⁶ at L=300 against an
-   individual-measurement adversary without quantum memory.
+1. A six-state QDS protocol with $P_{\text{forge}} \le 10^{-6}$ at $L=300$ against an
+   individual-measurement adversary without quantum memory (evaluated in `experiments/results/forgery_curve.csv`).
 2. Multi-vector detection that catches forgery, replay, impersonation, and
-   channel manipulation independently (no short-circuit).
-3. Post-quantum request authentication via ML-DSA-65.
-4. Tamper-evident evidence via HMAC-SHA256 hash chain.
+   channel manipulation independently (evaluated in `experiments/results/multi_vector_matrix.csv`).
+3. Post-quantum request authentication via ML-DSA-65 (FIPS 204).
+4. Tamper-evident evidence via HMAC-SHA256 hash chain with checkpoint verification.
+5. True signature transferability: Bob's fabrication against Charlie is rejected (`experiments/results/multi_vector_matrix.csv`).
 
 ### What we do NOT claim
 
-1. This is **not** a production quantum network. It runs on Qiskit Aer (simulator).
+1. This is **not** a production physical optical quantum network. It executes on IBM Qiskit Aer quantum circuit simulation.
 2. We do **not** claim security against a coherent-attack adversary with quantum memory.
-3. The `pqcrypto` library is a Python binding; the implementation has not been
-   audited for side channels.
-4. The HMAC key is stored in an environment variable, not an HSM.
+3. The construction currently signs **one bit ($m \in \{0, 1\}$) per session**, not arbitrary-length messages directly (see [docs/LIMITATIONS.md](docs/LIMITATIONS.md)).
+4. The HMAC key is stored in an environment variable, not a hardware security module (HSM).
+5. The Google Drive folder linked in PS26141 (`https://drive.google.com/drive/folders/1rgGdaPn9rdGZfkaqc3MKVfdCK8r5X_gk`) is an unauthenticated SPA drive shell without direct programmatic data access, documented as an open risk in [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
-See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the full list.
+See [docs/LIMITATIONS.md](docs/LIMITATIONS.md) for the complete specification of limitations and constraints.
 
 ---
 

@@ -359,7 +359,7 @@ where `D_KL` is the KL divergence.
 
 > The quantum unforgeability layer is information-theoretically secure **conditional on** (a) uniformly random single-use keys, (b) single-copy non-orthogonal states, and (c) the adversary model of §3.1. The classical transport authentication layer is post-quantum computationally secure (Module-Lattice DSA, FIPS 204).
 
-The phrase "unconditionally secure" must not appear anywhere.
+The absolute phrase 'unconditional security' without qualification must not appear anywhere.
 
 ### 3.7 Non-Repudiation and Dispute Resolution
 

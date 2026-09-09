@@ -1,15 +1,24 @@
 # Q-SENTINEL Limitations & Constraints
 
-## 1. Operating Environment
-**Python Version Mismatch:** The development machine runs Python 3.14.0, while the specification requires Python 3.11. All quantum and classical cryptographic libraries (Qiskit 1.1.1, qiskit-aer 0.14.2, pqcrypto 1.0.0) have been verified to execute identically on 3.14.0. The Track B Docker images are pinned to `python:3.11-slim`.
+## 1. Scope of Signed Message
+**Single-Bit Signature Protocol:** The current construction strictly signs **one bit ($m \in \{0, 1\}$) per session**. It does **not** sign arbitrary-length messages or documents directly. For each signature, Alice distributes two independent key sequences ($K_0$ and $K_1$), each of length $L$, and reveals only the key sequence corresponding to the message bit $m$. To sign an $n$-bit message or document digest, $n$ independent parallel distribution sessions must be executed. Do not assume or imply arbitrary-length message signing in this version.
 
-**Windows vs Linux Isolation:** The Track A native deployment runs on Windows. OS-level filesystem isolation (using `chmod 600` and separate Unix user accounts) is a Linux mechanism. On Windows, isolation is enforced via Python process boundaries and environment variables. Full filesystem isolation is demonstrated in Track B Docker containers.
+## 2. Dataset Requirements and Google Drive PS Reference
+The Smart India Hackathon problem statement carries an external reference link:
+`https://drive.google.com/drive/folders/1rgGdaPn9rdGZfkaqc3MKVfdCK8r5X_gk`
+labelled *"Additional Information Regarding PS"*.
 
-## 2. Protocol Limitations
-- **Simulator Independence:** Qiskit-Aer executes the quantum circuit computationally. It does not reproduce physical hardware noise or actual photon transmission loss.
-- **Ledger Immutability:** The HMAC-SHA256 hash chain provides tamper evidence. It is a local data structure, not decentralized blockchain consensus.
-- **Zero AI/ML:** The implementation contains no machine learning, no neural networks, and no classifiers. The detection layer is strictly statistical (empirical distributions, Clopper–Pearson intervals, $\chi^2$ divergence).
-- **Post-Quantum Cryptography:** The transport layer uses Module-Lattice DSA (ML-DSA-65) for authentication. This is an algorithmic standard (FIPS 204), not an ML model.
+**Access Status and Operational Risk:**
+Direct programmatic retrieval of this URL yields a dynamic Single-Page Application (SPA) Google Drive shell titled "Egreen Quanta" requiring interactive Google authentication. No static, public tabular training or evaluation dataset could be retrieved automatically. 
 
-## 3. Dataset Requirements
-The SIH Problem Statement specifies a "Dataset" tag, but no external dataset is consumed. The Q-SENTINEL protocol inherently generates its own data via Qiskit-Aer simulation of the six-state quantum digital signature protocol. Calibration relies entirely on self-generated measurements.
+This is documented explicitly as an **open risk**: while Q-SENTINEL's protocol operates autonomously as an information-theoretic quantum digital signature scheme generating its own single-use quantum key states and measuring channel baselines dynamically (producing `experiments/results/noise_sweep.csv`), access to any proprietary vendor hardware datasets or specific optical channel trace files from that folder remains subject to manual retrieval by the organizing committee.
+
+## 3. Operating Environment
+**Python Version Compatibility:** The development environment executes on Python 3.14.0, while the production container specification targets Python 3.11. All quantum circuit generation, simulation, and cryptographic primitives (Qiskit 1.1.1, Qiskit-Aer 0.14.2, pure Python reference ML-DSA-65) have been verified to execute identically across versions. The production deployment in `docker-compose.yml` pins `python:3.11-slim`.
+
+**Operating System Isolation:** Native execution on Windows enforces isolation boundaries via Python process boundaries, environment variables, and SQLite immediate write locks. Full POSIX-compliant multi-user filesystem isolation (`chmod 600`) is provided in the Docker container architecture.
+
+## 4. Protocol & Hardware Limitations
+- **Quantum Simulation vs. Physical Hardware:** Verification is performed via IBM Qiskit-Aer statevector and density-matrix quantum circuit simulation. Physical optical fibers, photon detectors, and quantum hardware attenuation are modeled via Kraus noise operators, depolarizing channels, and coherent rotation operators ($R_x, R_z$), but do not execute on physical cryo-QPUs due to multi-minute cloud queuing constraints.
+- **Evidence Ledger:** The append-only hash chain uses HMAC-SHA256 with sequence numbering to provide tamper-evident cryptographic proofs. It is a centralized high-throughput microservice ledger, not a decentralized Byzantine-fault-tolerant blockchain consensus network.
+- **Zero AI/ML Invariant:** The architecture strictly avoids any machine learning models, neural networks, or trained classifiers. The detection layer is mathematical and physics-based, executing binomial hypothesis testing, Clopper–Pearson intervals, and quantum state tomography.

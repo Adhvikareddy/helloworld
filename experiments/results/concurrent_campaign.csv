@@ -1,6 +1,6 @@
 concurrency,throughput_rps,p95_latency_ms,chain_valid
-1,126.37,8.70,True
-5,114.02,243.85,True
-10,50.48,770.58,True
-20,27.08,1619.78,True
-50,14.55,3209.83,True
+1,104.62,13.78,True
+5,95.65,381.74,True
+10,85.81,457.28,True
+20,29.40,1510.98,True
+50,25.76,1752.98,True
