@@ -74,3 +74,15 @@ def verify_ledger(db_path: str = "data/ledger.db") -> bool:
             previous_hash = row['current_hash']
             
         return True
+
+
+def verify_checkpoint(checkpoint: dict, db_path: str = "data/ledger.db") -> bool:
+    """Verify that the ledger is consistent with a previously issued checkpoint."""
+    from src.ledger.hash_chain import EvidenceLedger
+    ledger = EvidenceLedger(db_path=db_path)
+    return ledger.verify_checkpoint(checkpoint)
+
+
+# Alias for compatibility
+verify_chain = verify_ledger
+

@@ -31,14 +31,21 @@ class DecisionPolicy:
         self.load_thresholds()
 
     def load_thresholds(self):
-        """Load thresholds from disk."""
+        """Load thresholds from disk. If corrupt, fails closed to uncalibrated."""
         if os.path.exists(self.filepath):
-            with open(self.filepath, 'r') as f:
-                data = json.load(f)
-                self.tau_low = data.get("tau_low", self.tau_low)
-                self.tau_high = data.get("tau_high", self.tau_high)
-                self.version = data.get("version", self.version)
-                self.provenance = data.get("provenance", {})
+            try:
+                with open(self.filepath, 'r') as f:
+                    data = json.load(f)
+                    if not isinstance(data, dict) or "tau_low" not in data or "tau_high" not in data:
+                        raise ValueError("Corrupt thresholds format")
+                    self.tau_low = float(data["tau_low"])
+                    self.tau_high = float(data["tau_high"])
+                    self.version = str(data.get("version", "uncalibrated"))
+                    self.provenance = data.get("provenance", {})
+            except Exception:
+                self.version = "uncalibrated"
+        else:
+            self.version = "uncalibrated"
 
     def save_thresholds(self, tau_low: float, tau_high: float, version: str, provenance: dict = None):
         """Save thresholds to disk."""

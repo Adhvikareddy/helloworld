@@ -46,7 +46,8 @@ def verify_qds(req: VerifyRequest, request: Request):
     client_ip = request.client.host if request.client else "unknown"
     global_rate_limiter.check_rate_limit(client_ip)
     
-    # Fail-closed on missing calibration
+    # Fail-closed on missing or corrupt calibration
+    global_policy.load_thresholds()
     if global_policy.get_version() == "uncalibrated":
         raise HTTPException(
             status_code=503,
@@ -69,19 +70,35 @@ def verify_qds(req: VerifyRequest, request: Request):
     if session_rec and session_rec.get("signer_id") != req.signer_id:
         is_identity_valid = False
         
-    auth_findings = AuthenticationProbe.evaluate(
-        is_identity_valid, is_authorized, req.signer_id, req.verifier_id
-    )
-    all_findings.extend(auth_findings)
+    try:
+        auth_findings = AuthenticationProbe.evaluate(
+            is_identity_valid, is_authorized, req.signer_id, req.verifier_id
+        )
+        all_findings.extend(auth_findings)
+    except Exception as exc:
+        all_findings.append(Finding(
+            detector_name="AuthenticationProbeFault",
+            severity=Severity.REJECT,
+            description=f"Authentication probe encountered internal fault: {exc}",
+            metrics={"error": str(exc)}
+        ))
     
     # 4. Freshness Probe (L3)
     is_timestamp_valid = TimestampGuard.is_valid(req.timestamp)
     is_fresh = global_nonce_guard.is_fresh(req.nonce, req.session_id)
     
-    freshness_findings = FreshnessProbe.evaluate(
-        is_timestamp_valid, not is_fresh, req.nonce, req.session_id
-    )
-    all_findings.extend(freshness_findings)
+    try:
+        freshness_findings = FreshnessProbe.evaluate(
+            is_timestamp_valid, not is_fresh, req.nonce, req.session_id
+        )
+        all_findings.extend(freshness_findings)
+    except Exception as exc:
+        all_findings.append(Finding(
+            detector_name="FreshnessProbeFault",
+            severity=Severity.REJECT,
+            description=f"Freshness probe encountered internal fault: {exc}",
+            metrics={"error": str(exc)}
+        ))
 
     # Check for session double consumption per verifier in SQLite
     if global_session_store.is_consumed(req.session_id, req.verifier_id):
@@ -105,24 +122,61 @@ def verify_qds(req: VerifyRequest, request: Request):
         ))
     else:
         bob_bases, bob_outcomes = v_data
-        alice_keys = [
-            QuantumKeyElement(basis=k.basis, bit=k.bit_value)
-            for k in req.revealed_keys
-        ]
 
-        
-        # Statistical evaluation (L2)
-        tau_low, tau_high = global_policy.get_thresholds()
-        stat_findings = StatisticalProbe.evaluate(
-            alice_keys, bob_bases, bob_outcomes, tau_low, tau_high
-        )
-        all_findings.extend(stat_findings)
-        
-        # Channel Tomography for attack attribution (L2)
-        tomography_findings = TomographyProbe.evaluate(
-            alice_keys, bob_bases, bob_outcomes
-        )
-        all_findings.extend(tomography_findings)
+        # Key length validations
+        if len(req.revealed_keys) == 0:
+            all_findings.append(Finding(
+                detector_name="KeyLengthValidator",
+                severity=Severity.REJECT,
+                description="Empty revealed_keys. Cannot verify signature.",
+                metrics={"revealed_len": 0, "session_L": len(bob_bases)}
+            ))
+        elif len(req.revealed_keys) > len(bob_bases):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Validation error: revealed_keys length ({len(req.revealed_keys)}) exceeds session L ({len(bob_bases)})."
+            )
+        elif len(req.revealed_keys) < len(bob_bases):
+            all_findings.append(Finding(
+                detector_name="KeyLengthValidator",
+                severity=Severity.REJECT,
+                description=f"Truncated revealed_keys: length ({len(req.revealed_keys)}) does not match session L ({len(bob_bases)}).",
+                metrics={"revealed_len": len(req.revealed_keys), "session_L": len(bob_bases)}
+            ))
+        else:
+            alice_keys = [
+                QuantumKeyElement(basis=k.basis, bit=k.bit_value)
+                for k in req.revealed_keys
+            ]
+
+            # Statistical evaluation (L2)
+            tau_low, tau_high = global_policy.get_thresholds()
+            try:
+                stat_findings = StatisticalProbe.evaluate(
+                    alice_keys, bob_bases, bob_outcomes, tau_low, tau_high
+                )
+                all_findings.extend(stat_findings)
+            except Exception as exc:
+                all_findings.append(Finding(
+                    detector_name="StatisticalProbeFault",
+                    severity=Severity.REJECT,
+                    description=f"Statistical probe internal fault: {exc}",
+                    metrics={"error": str(exc)}
+                ))
+            
+            # Channel Tomography for attack attribution (L2)
+            try:
+                tomography_findings = TomographyProbe.evaluate(
+                    alice_keys, bob_bases, bob_outcomes
+                )
+                all_findings.extend(tomography_findings)
+            except Exception as exc:
+                all_findings.append(Finding(
+                    detector_name="TomographyProbeFault",
+                    severity=Severity.REJECT,
+                    description=f"Tomography probe internal fault: {exc}",
+                    metrics={"error": str(exc)}
+                ))
 
     # 6. Correlation Engine
     decision, serialized_findings = CorrelationEngine.evaluate_findings(all_findings)
