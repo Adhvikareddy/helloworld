@@ -26,16 +26,23 @@ def send_distribute(
     verifiers: Optional[List[str]] = None,
     L: int = 100,
     disturbance: float = 0.0,
+    perturbation: Optional[str] = None,
 ) -> dict:
     """POST /v1/qds/distribute for genuine session setup."""
     if verifiers is None:
         verifiers = ["bob"]
     timestamp = time.time()
     nonce = f"nonce-{uuid.uuid4()}"
-    if disturbance > 0.0:
-        from apps.api.routes.testbed import _testbed_channel_state
+    from apps.api.routes.testbed import _testbed_channel_state
+    if perturbation is not None:
+        _testbed_channel_state["perturbation"] = perturbation
+        _testbed_channel_state["magnitude"] = disturbance
+    elif disturbance > 0.0:
         _testbed_channel_state["perturbation"] = "depolarizing"
         _testbed_channel_state["magnitude"] = disturbance
+    elif _testbed_channel_state.get("perturbation") not in ["rx_only", "rz_only", "depolarizing", "intercept_resend"]:
+        _testbed_channel_state["perturbation"] = "none"
+        _testbed_channel_state["magnitude"] = 0.0
 
     req_payload = {
         "session_id": session_id,
@@ -113,6 +120,7 @@ def get_base_payload(
     verifier_id: str = "bob",
     L: int = 100,
     disturbance: float = 0.0,
+    perturbation: Optional[str] = None,
     message_bit: int = 0,
     experiment_id: str = "live-demo",
     sign: bool = True,
@@ -133,6 +141,7 @@ def get_base_payload(
         verifiers=[verifier_id if verifier_id in ["bob", "charlie"] else "bob"],
         L=L,
         disturbance=eff_dist,
+        perturbation=perturbation,
     )
 
     # 2. Reveal honest key material

@@ -39,7 +39,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - QSENTINEL_LEDGER_SECRET=${QSENTINEL_LEDGER_SECRET:-change_me_in_production}
+      - QSENTINEL_LEDGER_SECRET=${QSENTINEL_LEDGER_SECRET:-default_insecure_secret_for_demo}
       - QSENTINEL_DB_PATH=/app/data/ledger.db
       - QSENTINEL_NONCE_DB=/app/data/nonces.db
     volumes:

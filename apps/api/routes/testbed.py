@@ -75,6 +75,21 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
     dist = req.disturbance if req and req.disturbance is not None else 0.25
     scenario = scenario_name.lower().replace("-", "_")
 
+    def _get_unredacted_findings(resp_data: dict) -> list:
+        evt_id = resp_data.get("evidence_id")
+        if evt_id:
+            try:
+                evt = global_ledger.get_event(evt_id)
+                if evt and evt.get("findings"):
+                    return evt["findings"]
+            except Exception:
+                pass
+        return resp_data.get("findings", [])
+
+    # Always ensure channel state starts clean
+    _testbed_channel_state["perturbation"] = "none"
+    _testbed_channel_state["magnitude"] = 0.0
+
     if scenario in ["forgery", "forgery_a", "forgery_b", "quantum_forgery"]:
         # 1. Forgery scenario: Valid ML-DSA-65 envelope, but attacker alters revealed quantum keys
         trial_id = f"forgery-{uuid.uuid4()}"
@@ -96,6 +111,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
         raw = send_verify(payload)
         resp = raw.get("response", {})
         actual_decision = "REJECT" if raw.get("http_status") == 403 else resp.get("decision", "ERROR")
+        findings = _get_unredacted_findings(resp)
 
         return {
             "scenario": scenario_name,
@@ -107,7 +123,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
             "actual_outcome": actual_decision,
             "detected": actual_decision != "ACCEPT",
             "event_id": resp.get("evidence_id"),
-            "findings": resp.get("findings", []),
+            "findings": findings,
             "latency_ms": resp.get("latency_ms", 0.0),
             "parameters": {"mutated_bits_count": mut_count, "total_bits": len(revealed)},
             "reason": "Cryptographically valid envelope with forged/mutated quantum key material caught by matched-basis evaluation."
@@ -124,6 +140,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
         second_raw = send_verify(copy.deepcopy(payload))
         resp = second_raw.get("response", {})
         actual_decision = "REJECT" if second_raw.get("http_status") == 403 else resp.get("decision", "ERROR")
+        findings = _get_unredacted_findings(resp)
 
         return {
             "scenario": scenario_name,
@@ -135,7 +152,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
             "actual_outcome": actual_decision,
             "detected": actual_decision != "ACCEPT",
             "event_id": resp.get("evidence_id"),
-            "findings": resp.get("findings", []),
+            "findings": findings,
             "latency_ms": resp.get("latency_ms", 0.0),
             "parameters": {"replayed_nonce": payload["nonce"], "session_id": payload["session_id"]},
             "reason": "Re-submitted identical session/nonce detected by persistent nonce guard and session single-use check."
@@ -154,6 +171,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
         raw = send_verify(payload)
         resp = raw.get("response", {})
         actual_decision = "REJECT" if raw.get("http_status") == 403 else resp.get("decision", "ERROR")
+        findings = _get_unredacted_findings(resp)
 
         return {
             "scenario": scenario_name,
@@ -165,7 +183,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
             "actual_outcome": actual_decision,
             "detected": actual_decision != "ACCEPT",
             "event_id": resp.get("evidence_id"),
-            "findings": resp.get("findings", []),
+            "findings": findings,
             "latency_ms": resp.get("latency_ms", 0.0),
             "parameters": {"claimed_signer": "alice", "signing_key": "mallory"},
             "reason": "Mallory forged request claiming to be Alice; rejected by ML-DSA-65 public key identity verification."
@@ -180,6 +198,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
         raw = send_verify(payload)
         resp = raw.get("response", {})
         actual_decision = "REJECT" if raw.get("http_status") == 403 else resp.get("decision", "ERROR")
+        findings = _get_unredacted_findings(resp)
 
         return {
             "scenario": scenario_name,
@@ -191,7 +210,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
             "actual_outcome": actual_decision,
             "detected": actual_decision != "ACCEPT",
             "event_id": resp.get("evidence_id"),
-            "findings": resp.get("findings", []),
+            "findings": findings,
             "latency_ms": resp.get("latency_ms", 0.0),
             "parameters": {"unauthorized_verifier_id": bad_verifier},
             "reason": "Verifier node not present in authorized verifiers registry; rejected before quantum state evaluation."
@@ -200,11 +219,19 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
     elif scenario in ["channel", "channel_manipulation"]:
         # 5. Channel disturbance: Elevated depolarizing noise during distribution
         trial_id = f"channel-{uuid.uuid4()}"
-        payload = get_base_payload(signer_id="alice", verifier_id="bob", disturbance=dist, experiment_id=trial_id)
+        _testbed_channel_state["perturbation"] = "depolarizing"
+        _testbed_channel_state["magnitude"] = dist
+        try:
+            payload = get_base_payload(signer_id="alice", verifier_id="bob", disturbance=dist, experiment_id=trial_id)
+            raw = send_verify(payload)
+        finally:
+            # Cleanly restore channel state to none so subsequent scenarios are not poisoned
+            _testbed_channel_state["perturbation"] = "none"
+            _testbed_channel_state["magnitude"] = 0.0
 
-        raw = send_verify(payload)
         resp = raw.get("response", {})
         actual_decision = resp.get("decision", "ERROR")
+        findings = _get_unredacted_findings(resp)
 
         return {
             "scenario": scenario_name,
@@ -216,7 +243,7 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
             "actual_outcome": actual_decision,
             "detected": actual_decision != "ACCEPT",
             "event_id": resp.get("evidence_id"),
-            "findings": resp.get("findings", []),
+            "findings": findings,
             "latency_ms": resp.get("latency_ms", 0.0),
             "parameters": {"disturbance_probability": dist},
             "reason": f"Depolarizing channel disturbance (p={dist}) induced state mismatches detected by statistical probe."
@@ -244,6 +271,12 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
         # Audit chain immediately to observe genuine detection
         chain_valid = verify_ledger(db_path)
 
+        # Restore original decision so ledger remains valid for subsequent audits
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE evidence SET decision = ? WHERE seq_num = ?", (decision, seq_num))
+            conn.commit()
+
         return {
             "scenario": scenario_name,
             "attack_type": "ledger_tamper",
@@ -262,16 +295,26 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
 
     elif scenario in ["timing_oracle", "timing"]:
         # 7. Constant-time latency analysis
-        start_valid = time.time()
-        v_payload = get_base_payload(signer_id="alice", disturbance=0.0)
-        send_verify(v_payload)
-        t_valid = time.time() - start_valid
+        # Warmup connection
+        try:
+            import urllib.request
+            urllib.request.urlopen("http://localhost:8000/v1/health")
+        except Exception:
+            pass
 
-        start_invalid = time.time()
+        v_payload = get_base_payload(signer_id="alice", disturbance=0.0)
         inv_payload = copy.deepcopy(v_payload)
         inv_payload["signature"] = "invalid_signature_tamper"
+
+        # Measure invalid auth latency (terminates early at L3)
+        t0 = time.time()
         send_verify(inv_payload)
-        t_invalid = time.time() - start_invalid
+        t_invalid = time.time() - t0
+
+        # Measure valid auth latency (proceeds through quantum verification)
+        t1 = time.time()
+        send_verify(v_payload)
+        t_valid = time.time() - t1
 
         delta = abs(t_valid - t_invalid)
         secure = delta < 0.5
@@ -294,11 +337,14 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
 
     elif scenario in ["legitimate", "honest"]:
         # 8. Legitimate transmission over clean channel
+        _testbed_channel_state["perturbation"] = "none"
+        _testbed_channel_state["magnitude"] = 0.0
         trial_id = f"honest-{uuid.uuid4()}"
         payload = get_base_payload(signer_id="alice", verifier_id="bob", disturbance=0.0, experiment_id=trial_id)
         raw = send_verify(payload)
         resp = raw.get("response", {})
         actual_decision = resp.get("decision", "ERROR")
+        findings = _get_unredacted_findings(resp)
 
         return {
             "scenario": scenario_name,
@@ -310,14 +356,114 @@ def trigger_attack_scenario(scenario_name: str, req: Optional[AttackTriggerReque
             "actual_outcome": actual_decision,
             "detected": False,
             "event_id": resp.get("evidence_id"),
-            "findings": resp.get("findings", []),
+            "findings": findings,
             "latency_ms": resp.get("latency_ms", 0.0),
             "parameters": {"disturbance": 0.0},
             "reason": "Honest transmission over clean quantum channel verified successfully."
         }
 
+    elif scenario in ["adaptive_x", "x_rotation", "coherent_x"]:
+        # 9. Coherent Pauli-X transverse rotation attack
+        trial_id = f"adaptive-x-{uuid.uuid4()}"
+        eff_mag = dist if dist > 0.0 else 0.35
+        _testbed_channel_state["perturbation"] = "rx_only"
+        _testbed_channel_state["magnitude"] = eff_mag
+        try:
+            payload = get_base_payload(
+                signer_id="alice",
+                verifier_id="bob",
+                disturbance=eff_mag,
+                perturbation="rx_only",
+                experiment_id=trial_id
+            )
+            raw = send_verify(payload)
+        finally:
+            _testbed_channel_state["perturbation"] = "none"
+            _testbed_channel_state["magnitude"] = 0.0
+        resp = raw.get("response", {})
+        actual_decision = resp.get("decision", "ERROR")
+        findings = _get_unredacted_findings(resp)
+
+        return {
+            "scenario": scenario_name,
+            "attack_type": "adaptive_x",
+            "target": "/v1/qds/verify",
+            "pipeline_stages": ["distribute_rx_rotation", "verify"],
+            "expected_primary_layer": "L2 (Pauli Tomography / StatisticalProbe)",
+            "expected_outcome": "QUARANTINE" if eff_mag <= 0.15 else "REJECT",
+            "actual_outcome": actual_decision,
+            "detected": actual_decision != "ACCEPT",
+            "event_id": resp.get("evidence_id"),
+            "findings": findings,
+            "latency_ms": resp.get("latency_ms", 0.0),
+            "parameters": {"perturbation": "rx_only", "magnitude": eff_mag},
+            "reason": "Coherent Pauli-X transverse rotation induced basis asymmetry detected by channel tomography."
+        }
+
+    elif scenario in ["transferability", "forgery_by_verifier"]:
+        # 10. Forgery by Verifier (Transferability check)
+        from attacker.scenarios.forgery_by_verifier import run_forgery_by_verifier
+        t_res = run_forgery_by_verifier(L=100)
+        resp_c = t_res.get("response_charlie", {})
+        findings = _get_unredacted_findings(resp_c)
+        return {
+            "scenario": scenario_name,
+            "attack_type": "transferability_forgery",
+            "target": "/v1/qds/verify",
+            "pipeline_stages": ["bob_accept_own_record", "charlie_reject_forgery"],
+            "expected_primary_layer": "L2 (Dual-Threshold Transferability Guard)",
+            "expected_outcome": "REJECT",
+            "actual_outcome": t_res.get("decision_charlie", "REJECT"),
+            "detected": t_res.get("transferability_preserved", True),
+            "event_id": resp_c.get("evidence_id"),
+            "findings": findings,
+            "latency_ms": resp_c.get("latency_ms", 0.0),
+            "parameters": {
+                "bob_verdict": t_res.get("decision_bob"),
+                "charlie_verdict": t_res.get("decision_charlie"),
+                "transferability_preserved": t_res.get("transferability_preserved")
+            },
+            "reason": f"Bob's fabricated signature accepted by Bob ({t_res.get('decision_bob')}) but rejected by Charlie ({t_res.get('decision_charlie')}). Cross-recipient transferability preserved."
+        }
+
+    elif scenario in ["blind", "blind_trial"]:
+        # 11. Autonomous Blind Randomized Trial
+        from attacker.blind_trial import execute_blind_trial
+        bt = execute_blind_trial()
+        det = bt.get("detector_result", {})
+        gt = bt.get("ground_truth", {})
+        eval_info = bt.get("evaluation", {})
+        actual_decision = det.get("actual_decision", "ERROR")
+        evt_id = det.get("evidence_id")
+        findings = _get_unredacted_findings({"evidence_id": evt_id}) if evt_id else det.get("findings_sample", [])
+        trial_type = gt.get("type", "random")
+        expected_verdict = gt.get("expected_verdict", "UNKNOWN")
+        correct = eval_info.get("correct", False)
+
+        return {
+            "scenario": scenario_name,
+            "attack_type": f"blind_{trial_type}",
+            "target": "/v1/qds/verify",
+            "pipeline_stages": ["blind_dispatch", "independent_verdict"],
+            "expected_primary_layer": gt.get("expected_layer") or "Autonomous",
+            "expected_outcome": expected_verdict,
+            "actual_outcome": actual_decision,
+            "detected": det.get("detected", False),
+            "event_id": evt_id,
+            "findings": findings,
+            "latency_ms": det.get("latency_ms", 0.0),
+            "parameters": {
+                "ground_truth_type": trial_type,
+                "expected_verdict": expected_verdict,
+                "correct": correct,
+                "confusion_class": eval_info.get("confusion_class")
+            },
+            "reason": f"Autonomous blind trial: Ground truth is '{trial_type}' (expected {expected_verdict}), verified as '{actual_decision}' (correct={correct})."
+        }
+
     else:
         raise HTTPException(status_code=400, detail=f"Unknown scenario: {scenario_name}")
+
 
 class BlindBatchRequest(BaseModel):
     batch_size: Optional[int] = Field(100, ge=1, le=500)

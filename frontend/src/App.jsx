@@ -1,324 +1,142 @@
-import React, { useState, useEffect } from 'react';
-import Header from './components/Header';
-import LiveAttackPanel from './components/LiveAttackPanel';
-import AttackMatrix from './components/AttackMatrix';
-import HashChainExplorer from './components/HashChainExplorer';
-import DecisionTimeline from './components/DecisionTimeline';
-import ForgeryCurveChart from './components/ForgeryCurveChart';
-import QuantumStateVisualizer from './components/QuantumStateVisualizer';
-import NetworkTopology from './components/NetworkTopology';
-import { Shield, Zap, Database, Orbit, Network, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react'
+import ShootingStarsBackground from './components/ShootingStarsBackground'
+import Header from './components/Header'
+import AttackMatrix from './components/AttackMatrix'
+import PipelineTracker from './components/PipelineTracker'
+import PauliBarChart from './components/PauliBarChart'
+import DeviationGauge from './components/DeviationGauge'
+import LedgerInspector from './components/LedgerInspector'
+import { runScenario, getCalibrationStatus, getLedgerEvents } from './services/api'
+import { Activity, Layers, BookOpen } from 'lucide-react'
+
+const TABS = [
+  { id: 'control', label: 'Control Room', icon: Activity },
+  { id: 'telemetry', label: 'Telemetry', icon: Layers },
+  { id: 'ledger', label: 'Evidence Ledger', icon: BookOpen },
+]
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('threats');
-  const [userRole, setUserRole] = useState('auditor'); // 'standard' or 'auditor'
+  const [activeTab, setActiveTab] = useState('control')
+  const [activeScenarioKey, setActiveScenarioKey] = useState(null)
+  const [lastResult, setLastResult] = useState(null)
+  const [calibration, setCalibration] = useState(null)
+  const [ledgerEvents, setLedgerEvents] = useState([])
 
-  // Backend state
-  const [health, setHealth] = useState(null);
-  const [calibration, setCalibration] = useState(null);
-  const [events, setEvents] = useState([]);
-  const [chainAudit, setChainAudit] = useState(null);
+  // Load calibration on mount
+  useEffect(() => {
+    getCalibrationStatus().then(setCalibration)
+  }, [])
 
-  // Loading states
-  const [isAttacking, setIsAttacking] = useState(false);
-  const [isCalibrating, setIsCalibrating] = useState(false);
-  const [isVerifyingChain, setIsVerifyingChain] = useState(false);
-  const [isTampering, setIsTampering] = useState(false);
-
-  // Attack result state
-  const [lastAttackResult, setLastAttackResult] = useState(null);
-  const [lastTriggeredScenario, setLastTriggeredScenario] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (msg, type = 'info') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
-  };
-
-  // Fetch initial data
-  const fetchData = async () => {
-    try {
-      // 1. Health
-      const hRes = await fetch('/v1/health').catch(() => null);
-      if (hRes?.ok) setHealth(await hRes.json());
-
-      // 2. Calibration
-      const cRes = await fetch('/v1/calibration/status').catch(() => null);
-      if (cRes?.ok) setCalibration(await cRes.json());
-
-      // 3. Ledger Events
-      const eRes = await fetch('/v1/ledger/events?limit=50').catch(() => null);
-      if (eRes?.ok) {
-        const evts = await eRes.json();
-        setEvents(evts);
-      }
-
-      // 4. Chain audit
-      const chRes = await fetch('/v1/ledger/verify-chain').catch(() => null);
-      if (chRes?.ok) setChainAudit(await chRes.json());
-    } catch (err) {
-      console.error('Data fetch error:', err);
-    }
-  };
+  // Load ledger events on mount and when tab changes to ledger
+  const refreshLedger = useCallback(() => {
+    getLedgerEvents().then(setLedgerEvents)
+  }, [])
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 8000);
-    return () => clearInterval(interval);
-  }, []);
+    refreshLedger()
+  }, [refreshLedger])
 
-  // Compute stats
-  const stats = {
-    total: events.length,
-    accepted: events.filter((e) => e.decision === 'ACCEPT').length,
-    quarantined: events.filter((e) => e.decision === 'QUARANTINE').length,
-    rejected: events.filter((e) => e.decision === 'REJECT').length,
-    avgLatency: '1.8'
-  };
+  useEffect(() => {
+    if (activeTab === 'ledger') refreshLedger()
+  }, [activeTab, refreshLedger])
 
-  // Trigger attack scenario
-  const handleTriggerAttack = async (scenario, disturbance) => {
-    setIsAttacking(true);
-    setLastTriggeredScenario(scenario);
-    showToast(`Launching ${scenario} attack against API...`, 'info');
+  const handleRunScenario = async (scenario) => {
+    setActiveScenarioKey(scenario.key)
 
-    try {
-      const res = await fetch(`/v1/testbed/attack/${scenario}`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-role': userRole
-        },
-        body: JSON.stringify({ disturbance })
-      });
+    const result = await runScenario(scenario.key, scenario.payload)
+    setLastResult(result)
 
-      if (res.ok) {
-        const data = await res.json();
-        setLastAttackResult(data);
-        showToast(
-          `${scenario.toUpperCase()}: Result = ${data.actual_outcome || 'PROCESSED'} (${data.detected ? 'DETECTED' : 'UNCAUGHT'})`,
-          data.actual_outcome === 'ACCEPT' ? 'success' : data.actual_outcome === 'QUARANTINE' ? 'warning' : 'error'
-        );
-        // Refresh ledger
-        fetchData();
-      } else {
-        showToast(`Attack failed with HTTP ${res.status}`, 'error');
-      }
-    } catch (err) {
-      showToast(`Network error triggering attack: ${err.message}`, 'error');
-    } finally {
-      setIsAttacking(false);
-    }
-  };
-
-  // Run analytical calibration
-  const handleCalibrate = async () => {
-    setIsCalibrating(true);
-    try {
-      const res = await fetch('/v1/calibration/calibrate', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setCalibration((prev) => ({
-          ...prev,
-          policy_version: data.policy_version,
-          thresholds: [data.tau_low, data.tau_high]
-        }));
-        showToast(`Calibrated policy to ${data.policy_version}`, 'success');
-      }
-    } catch (err) {
-      showToast(`Calibration failed: ${err.message}`, 'error');
-    } finally {
-      setIsCalibrating(false);
-    }
-  };
-
-  // Audit whole chain
-  const handleVerifyChain = async () => {
-    setIsVerifyingChain(true);
-    try {
-      const res = await fetch('/v1/ledger/verify-chain');
-      if (res.ok) {
-        const data = await res.json();
-        setChainAudit(data);
-        if (data.chain_valid) {
-          showToast('Ledger audit complete: 100% hash chain & HMAC valid', 'success');
-        } else {
-          showToast('Ledger audit failed: Integrity violation detected!', 'error');
-        }
-      }
-    } catch (err) {
-      showToast(`Audit failed: ${err.message}`, 'error');
-    } finally {
-      setIsVerifyingChain(false);
-    }
-  };
-
-  // Tamper database
-  const handleTamperDb = async () => {
-    setIsTampering(true);
-    try {
-      const res = await fetch('/v1/ledger/tamper', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        showToast(`Adversarial mutation executed on Block #${data.seq_num}. Auditing chain...`, 'warning');
-        // Audit chain immediately
-        handleVerifyChain();
-        fetchData();
-      }
-    } catch (err) {
-      showToast(`Tamper failed: ${err.message}`, 'error');
-    } finally {
-      setIsTampering(false);
-    }
-  };
+    // Refresh ledger in background
+    refreshLedger()
+  }
 
   return (
-    <div className="container">
-      {/* Toast Notification Banner */}
-      {toast && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          zIndex: 9999,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.75rem 1.25rem',
-          borderRadius: '10px',
-          background: toast.type === 'success' ? '#064e3b' : toast.type === 'error' ? '#881337' : toast.type === 'warning' ? '#78350f' : '#0c4a6e',
-          color: '#fff',
-          border: '1px solid rgba(255,255,255,0.2)',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-          fontFamily: 'var(--font-main)',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          animation: 'slideIn 0.2s ease-out'
-        }}>
-          {toast.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
-          {toast.msg}
-        </div>
-      )}
+    <div className="min-h-screen" style={{ backgroundColor: '#090a0d' }}>
+      <ShootingStarsBackground />
 
-      {/* Global Header */}
-      <Header
-        health={health}
-        calibration={calibration}
-        userRole={userRole}
-        setUserRole={setUserRole}
-        onCalibrate={handleCalibrate}
-        isCalibrating={isCalibrating}
-        stats={stats}
-        onRefresh={fetchData}
-      />
+      <div className="relative z-10 max-w-screen-2xl mx-auto">
 
-      {/* Navigation Tabs */}
-      <div className="glass-panel" style={{ padding: '0.25rem', marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <button 
-          className={`nav-tab ${activeTab === 'threats' ? 'active' : ''}`}
-          onClick={() => setActiveTab('threats')}
-        >
-          <Zap size={16} />
-          Live Threat Suite & Defense Matrix
-        </button>
-        <button 
-          className={`nav-tab ${activeTab === 'ledger' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ledger')}
-        >
-          <Database size={16} />
-          Evidence Ledger & Timeline (L4)
-        </button>
-        <button 
-          className={`nav-tab ${activeTab === 'physics' ? 'active' : ''}`}
-          onClick={() => setActiveTab('physics')}
-        >
-          <Orbit size={16} />
-          Quantum Physics & Security Bounds (L1/L2)
-        </button>
-        <button 
-          className={`nav-tab ${activeTab === 'network' ? 'active' : ''}`}
-          onClick={() => setActiveTab('network')}
-        >
-          <Network size={16} />
-          Network Isolation Topology & Role Tiering
-        </button>
-      </div>
+        {/* Header */}
+        <Header />
 
-      {/* Tab 1: Live Threat Suite & Attack Matrix */}
-      {activeTab === 'threats' && (
-        <div>
-          <LiveAttackPanel
-            onTriggerAttack={handleTriggerAttack}
-            isAttacking={isAttacking}
-            lastAttackResult={lastAttackResult}
-            userRole={userRole}
-          />
-          <AttackMatrix lastTriggeredScenario={lastTriggeredScenario} />
-        </div>
-      )}
-
-      {/* Tab 2: Evidence Ledger & Decision Timeline */}
-      {activeTab === 'ledger' && (
-        <div>
-          <HashChainExplorer
-            events={events}
-            onVerifyChain={handleVerifyChain}
-            chainAuditResult={chainAudit}
-            isVerifyingChain={isVerifyingChain}
-            onTamperDb={handleTamperDb}
-            isTampering={isTampering}
-            onRefreshEvents={fetchData}
-          />
-          <DecisionTimeline events={events} />
-        </div>
-      )}
-
-      {/* Tab 3: Quantum Physics & Security Bounds */}
-      {activeTab === 'physics' && (
-        <div>
-          <QuantumStateVisualizer />
-          <ForgeryCurveChart />
-        </div>
-      )}
-
-      {/* Tab 4: Network Isolation & Role Tiering */}
-      {activeTab === 'network' && (
-        <div>
-          <NetworkTopology />
-          {/* Detailed Role Tiering Explanation */}
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--neon-violet)' }}>
-              Role-Based Response Tiering (Active Role: {userRole === 'auditor' ? 'Auditor / Security Officer' : 'Standard Verifier (Bob)'})
-            </h3>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '1rem' }}>
-              To prevent adversaries from probing detection thresholds or profiling internal probe weights through trial-and-error reconnaissance, Q-SENTINEL v9 strictly tiers verification responses:
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ background: 'rgba(56, 189, 248, 0.05)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#38bdf8', marginBottom: '0.4rem' }}>
-                  Standard Verifier (e.g. Bob / Public API Consumer)
-                </div>
-                <ul style={{ fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
-                  <li>Binary ACCEPT / REJECT verdicts.</li>
-                  <li>Granular probe metrics (mismatch rates, basis tomography, nonces) are <strong>redacted</strong> on REJECT.</li>
-                  <li>Returns safe generic security policy notice.</li>
-                </ul>
-              </div>
-
-              <div style={{ background: 'rgba(168, 85, 247, 0.05)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#c084fc', marginBottom: '0.4rem' }}>
-                  Authorized Auditor / Security Officer (Auditor Mode)
-                </div>
-                <ul style={{ fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '1.2rem', lineHeight: 1.6 }}>
-                  <li>Unredacted forensic diagnostic telemetry.</li>
-                  <li>Full detector findings: `IdentityGuard`, `StatisticalProbe`, `TomographyProbe`.</li>
-                  <li>Exact mismatch percentages, basis counts, and evidence block IDs for regulatory compliance.</li>
-                </ul>
-              </div>
-            </div>
+        {/* Tab Navigation */}
+        <nav className="px-6 mb-6">
+          <div className="inline-flex gap-1 p-1 rounded-xl bg-slate-900/60 border border-white/8 backdrop-blur">
+            {TABS.map(tab => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs tracking-wider uppercase font-medium transition-all duration-200
+                    ${isActive
+                      ? 'bg-[#c6f135]/15 text-[#c6f135] border border-[#c6f135]/35 shadow-lg shadow-[#c6f135]/5'
+                      : 'text-[#8b8e97] hover:text-white hover:bg-white/5'
+                    }`}
+                >
+                  <Icon size={14} />
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
-        </div>
-      )}
+        </nav>
+
+        {/* Tab Content */}
+        {activeTab === 'control' && (
+          <div className="animate-fade-in">
+            <AttackMatrix
+              onRun={handleRunScenario}
+              activeKey={activeScenarioKey}
+              lastResult={lastResult}
+              onNavigateToTelemetry={() => setActiveTab('telemetry')}
+            />
+          </div>
+        )}
+
+        {activeTab === 'telemetry' && (
+          <div className="px-6 pb-8 space-y-4 animate-fade-in">
+            {/* Pipeline Tracker */}
+            <PipelineTracker result={lastResult} />
+
+            {/* Charts row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <PauliBarChart result={lastResult} calibration={calibration} />
+              <DeviationGauge result={lastResult} calibration={calibration} />
+            </div>
+
+            {/* Calibration info card */}
+            {calibration && (
+              <div className="glass-card px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: 'Baseline Version', value: calibration.baseline_version },
+                  { label: 'Policy Version', value: calibration.policy_version },
+                  { label: 'T_low', value: (calibration.thresholds?.tau_low ?? (Array.isArray(calibration.thresholds) ? calibration.thresholds[0] : 0.05))?.toFixed(4) },
+                  { label: 'T_high', value: (calibration.thresholds?.tau_high ?? (Array.isArray(calibration.thresholds) ? calibration.thresholds[1] : 0.15))?.toFixed(4) },
+                ].map(item => (
+                  <div key={item.label} className="flex flex-col gap-1">
+                    <span className="text-slate-500 text-xs">{item.label}</span>
+                    <span className="text-slate-200 text-sm font-mono font-semibold">{item.value ?? '—'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!lastResult && (
+              <div className="glass-card py-16 text-center text-slate-600 font-mono text-sm">
+                No telemetry yet — go to Control Room and run a scenario.
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'ledger' && (
+          <div className="animate-fade-in">
+            <LedgerInspector events={ledgerEvents} onRefresh={refreshLedger} />
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }

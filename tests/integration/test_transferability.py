@@ -112,7 +112,7 @@ def test_dual_threshold_transferability_policy():
     tau_low, tau_high = global_policy.get_thresholds()
     
     # Primary below tau_low and secondary below tau_high -> ACCEPT
-    res_accept = global_policy.evaluate_transferable(0.01, 0.05)
+    res_accept = global_policy.evaluate_transferable(tau_low * 0.5, tau_high * 0.5)
     assert res_accept.decision == "ACCEPT"
     assert len(res_accept.findings) == 0
 
